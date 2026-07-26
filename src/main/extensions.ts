@@ -6,6 +6,7 @@ import { flankSession } from './browser-session';
 import { settingsStore } from './stores/settings-store';
 import { parseExtensionManifest } from './extension-manifest';
 import { extensionIconUrl } from './icons-protocol';
+import { extensionCompatPreloadPath } from './renderer-url';
 import { windowIcon } from './manager-window';
 import { log, logError } from './log';
 
@@ -67,6 +68,16 @@ export function initExtensions(host: ExtensionsHost): void {
       return win;
     }
   });
+
+  // After the constructor, so these run after electron-chrome-extensions' own
+  // preloads have finished building `chrome` (see extension-compat.ts).
+  for (const type of ['service-worker', 'frame'] as const) {
+    flankSession().registerPreloadScript({
+      id: `flank-extension-compat-${type}`,
+      type,
+      filePath: extensionCompatPreloadPath
+    });
+  }
 }
 
 /** Registers a content view so chrome.tabs can see it. Removal is automatic

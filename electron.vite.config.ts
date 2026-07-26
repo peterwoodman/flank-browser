@@ -15,7 +15,8 @@ export default defineConfig({
       rollupOptions: {
         input: {
           chrome: resolve(__dirname, 'src/preload/chrome.ts'),
-          content: resolve(__dirname, 'src/preload/content.ts')
+          content: resolve(__dirname, 'src/preload/content.ts'),
+          'extension-compat': resolve(__dirname, 'src/preload/extension-compat.ts')
         }
       }
     }

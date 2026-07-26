@@ -3,6 +3,7 @@ import { join } from 'path';
 
 export const chromePreloadPath = join(__dirname, '../preload/chrome.js');
 export const contentPreloadPath = join(__dirname, '../preload/content.js');
+export const extensionCompatPreloadPath = join(__dirname, '../preload/extension-compat.js');
 
 /** Loads a chrome-UI route (`manager` or `space/<windowId>`) into a web contents. */
 export function loadChromeRoute(contents: WebContents, route: string): void {
