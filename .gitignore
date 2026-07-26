@@ -1,0 +1,9 @@
+node_modules/
+out/
+dist/
+*.log
+*.tsbuildinfo
+
+# OS / editor cruft (the app is built on all three platforms)
+.DS_Store
+Thumbs.db

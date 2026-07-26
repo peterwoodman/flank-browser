@@ -1,0 +1,348 @@
+/* Flank chrome styles. Follows the OS light/dark setting; no in-app switch. */
+
+:root {
+  --font: 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+
+  --bg: #f3f3f3;
+  --bg-panel: #ffffff;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --fg: #1a1a1a;
+  --fg-muted: rgba(26, 26, 26, 0.6);
+  --border: rgba(0, 0, 0, 0.09);
+  --accent: #0067c0;
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+
+  /* Wash over otherwise empty chrome canvases: light lifting off the top
+     edge, an accent veil throughout, and the accent pooling at the bottom.
+
+     Vertical rather than radial on purpose. The native caption-button strip
+     can only take one flat color, so anything that varies across the window's
+     width would make that strip read as a patch on the title bar; see
+     titleBarOverlayColors() in the main process, which pairs with these. */
+  --wash-glow: rgba(255, 255, 255, 0.7);
+  --wash-tint: rgba(0, 103, 192, 0.14);
+  --wash-veil: rgba(0, 103, 192, 0.05);
+  --wash:
+    linear-gradient(180deg, var(--wash-glow), transparent 45%),
+    linear-gradient(0deg, var(--wash-tint), transparent 55%),
+    linear-gradient(var(--wash-veil), var(--wash-veil));
+
+  /* Adaptive page colors; overridden per section at runtime. */
+  --chrome-bg: var(--bg);
+  --chrome-fg: var(--fg);
+
+  /* Fluent-style motion (docs/ui.md → Motion). */
+  --ease-decel: cubic-bezier(0, 0, 0, 1);
+  --dur-state: 83ms;
+  --dur-flyout: 187ms;
+  --dur-dialog: 250ms;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #202020;
+    --bg-panel: #2b2b2b;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(255, 255, 255, 0.1);
+    --fg: #f0f0f0;
+    --fg-muted: rgba(240, 240, 240, 0.6);
+    --border: rgba(255, 255, 255, 0.08);
+    --accent: #4cc2ff;
+    --shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+    /* Dark backgrounds swallow a wash: white lifts #202020 far less per unit
+       of alpha than it darkens #f3f3f3, so these run stronger than they look. */
+    --wash-glow: rgba(255, 255, 255, 0.09);
+    --wash-tint: rgba(76, 194, 255, 0.2);
+    --wash-veil: rgba(76, 194, 255, 0.09);
+  }
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--fg);
+  /* Transparent, not var(--bg): in space windows the chrome view is raised
+     above the page views for flyouts/drags, and an opaque body would blank
+     the pages underneath. The native window backgroundColor paints the same
+     base color; visible chrome surfaces paint their own background. */
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  /* Arrow, not pointer: native apps don't use the hand cursor on controls. */
+  cursor: default;
+}
+
+/* --- Motion --- */
+
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes dialog-in {
+  from {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+input,
+select {
+  font-family: inherit;
+}
+
+/* --- Title bar (Window Controls Overlay) --- */
+
+.titlebar {
+  position: relative;
+  height: env(titlebar-area-height, 40px);
+  margin-left: env(titlebar-area-x, 0);
+  width: env(titlebar-area-width, 100%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 6px 0 14px;
+  -webkit-app-region: drag;
+  flex: none;
+}
+
+.titlebar-title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.titlebar button {
+  -webkit-app-region: no-drag;
+}
+
+/* --- Shared controls --- */
+
+.icon-button {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  font-size: 15px;
+  color: var(--fg-muted);
+  transition:
+    background-color var(--dur-state) linear,
+    color var(--dur-state) linear;
+}
+
+.icon-button:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.icon-button:active {
+  background: var(--bg-active);
+}
+
+/* Pressed glyphs dim slightly, like Fluent icon buttons. */
+.icon-button:active > * {
+  opacity: 0.6;
+}
+
+.button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  transition:
+    background-color var(--dur-state) linear,
+    opacity var(--dur-state) linear;
+}
+
+.button:hover {
+  background: var(--bg-hover);
+}
+
+.button:active:not(:disabled) {
+  opacity: 0.75;
+}
+
+.button.primary {
+  background: var(--accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.button.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button.danger {
+  background: #c42b1c;
+  border-color: transparent;
+  color: #fff;
+}
+
+.button.small {
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.text-input {
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg);
+  font-size: 13px;
+  outline: none;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.text-input:focus {
+  border-color: var(--accent);
+}
+
+.select-input {
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--fg);
+  font-size: 13px;
+  outline: none;
+}
+
+.select-input:focus {
+  border-color: var(--accent);
+}
+
+/* --- Overlays, context menu, modal --- */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+}
+
+/* Contained variant: fills the nearest positioned ancestor (e.g. one
+   section's home view) instead of the window. */
+.overlay-local {
+  position: absolute;
+}
+
+.overlay-dim {
+  background: rgba(0, 0, 0, 0.3);
+  display: grid;
+  place-items: center;
+  animation: fade-in var(--dur-dialog) var(--ease-decel);
+}
+
+.context-menu {
+  position: absolute;
+  min-width: 160px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  animation: menu-in var(--dur-flyout) var(--ease-decel);
+}
+
+.context-menu-item {
+  text-align: left;
+  padding: 7px 12px;
+  border-radius: 5px;
+  transition: background-color var(--dur-state) linear;
+}
+
+.context-menu-item:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.context-menu-item:disabled {
+  color: var(--fg-muted);
+  cursor: default;
+}
+
+.context-menu-item.danger {
+  color: #c42b1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .context-menu-item.danger {
+    color: #ff99a4;
+  }
+}
+
+.modal {
+  min-width: 320px;
+  max-width: 480px;
+  padding: 20px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  animation: dialog-in var(--dur-dialog) var(--ease-decel);
+}
+
+.modal-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+
+.modal-message {
+  margin-bottom: 14px;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+
+.modal-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}

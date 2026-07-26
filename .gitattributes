@@ -1,0 +1,6 @@
+# Normalize line endings in the repo; check out native. Keeps diffs clean when
+# the same tree is built on Windows, macOS, and Linux.
+* text=auto
+
+*.png binary
+*.ico binary

@@ -1,0 +1,55 @@
+appId: dev.flank.app
+productName: Flank
+directories:
+  output: dist
+  buildResources: resources
+
+files:
+  - out/**
+  # electron-vite's main-process public dir: `?asset` imports (the Linux
+  # window icon) resolve here at runtime instead of being copied into out/.
+  - resources/**
+  - package.json
+  # electron-vite externalizes runtime dependencies; electron-builder includes
+  # package.json "dependencies" (electron-chrome-extensions and its preload
+  # script) automatically.
+
+asarUnpack:
+  - resources/**
+
+# A plain copy of the icon at <app>/resources/icon.png, for users to point a
+# hand-written .desktop file at (tar.gz has no installer to place icons).
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+
+# The GPL requires the license text to travel with the binaries. Sits at the
+# package root beside the LICENSE.electron.txt electron-builder adds itself.
+extraFiles:
+  - from: LICENSE
+    to: LICENSE.txt
+
+# A plain zip, unzip-and-run, no installer — same as the other platforms.
+win:
+  target:
+    - target: zip
+      arch: [x64]
+  icon: resources/icon.ico
+
+mac:
+  target:
+    - target: zip
+      arch: [arm64, x64]
+  icon: resources/icon.png
+  category: public.app-category.productivity
+
+linux:
+  target:
+    - target: tar.gz
+      arch: [x64]
+  icon: resources/icon.png
+  category: Network
+
+# No code signing configured; local/personal distribution only.
+forceCodeSigning: false
+npmRebuild: false

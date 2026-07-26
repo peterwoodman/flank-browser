@@ -1,0 +1,697 @@
+.space-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: transparent;
+}
+
+/* The window base paints the background; the chrome view stays transparent
+   so it can be raised above the pages for flyouts. Visible chrome surfaces
+   paint their own background — but never .section itself: a parent's
+   background also paints behind the "transparent" content hole, which would
+   cover the pages whenever the chrome is raised. */
+.space-root .titlebar,
+.toolbar,
+.topbar,
+.find-bar,
+.loadbar-lane,
+.home-view {
+  background: var(--chrome-bg, var(--bg));
+  /* Adaptive page colors settle asynchronously; ease instead of flashing. */
+  transition:
+    background-color 200ms linear,
+    color 200ms linear;
+}
+
+.space-root .titlebar,
+.section {
+  color: var(--chrome-fg, var(--fg));
+}
+
+/* One backdrop across the whole window. These surfaces must paint separately
+   (an opaque ancestor would blank the pages), so `fixed` pins each one's slice
+   of the wash to the window rather than restarting the gradient per element:
+   the title bar and both home views then line up into a single image. The
+   title bar joins only while the left section is home — with a page there it
+   wears that page's adaptive color instead. */
+.space-root .titlebar-wash,
+.home-view {
+  background-image: var(--wash);
+  background-attachment: fixed;
+}
+
+.sections {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+}
+
+.section {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* --- Split bar --- */
+
+.splitbar {
+  cursor: col-resize;
+  /* Opaque, not var(--border): this strip is the one chrome region that is
+     semi-transparent at the window level, and Linux compositors show stale
+     buffer content (page text) through it, flickering on mouse moves. */
+  background: color-mix(in srgb, var(--fg) 9%, var(--bg));
+  display: grid;
+  place-items: center;
+  touch-action: none;
+}
+
+.splitbar-grip {
+  width: 2px;
+  height: 36px;
+  border-radius: 1px;
+  background: var(--fg-muted);
+  opacity: 0.5;
+}
+
+/* --- Home view --- */
+
+.home-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  animation: fade-in var(--dur-dialog) var(--ease-decel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 32px 56px;
+  overflow-y: auto;
+}
+
+.home-return {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+.home-switcher {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+}
+
+.home-search {
+  width: min(520px, 100%);
+  margin-bottom: 40px;
+}
+
+/* Tile metrics: 104px items with 8px inner padding, a 56px icon card holding
+   a 32px icon, 16px between tiles. */
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 104px);
+  gap: 16px;
+  justify-content: center;
+  width: 100%;
+  max-width: 740px;
+}
+
+.home-tile {
+  width: 104px;
+  padding: 12px 8px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-tile {
+  transition:
+    background-color var(--dur-state) linear,
+    transform var(--dur-state) linear;
+}
+
+.home-tile:hover {
+  background: var(--bg-hover);
+}
+
+/* Pressed tiles compress slightly, like GridView items. */
+.home-tile:active {
+  transform: scale(0.97);
+}
+
+.home-tile.dragging {
+  opacity: 0.4;
+}
+
+.home-tile-icon {
+  width: 56px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.home-tile-icon img {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.home-tile-letter {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--fg-muted);
+}
+
+.home-tile-title {
+  max-width: 88px;
+  font-size: 13px;
+  line-height: 1.25;
+  text-align: center;
+  /* Two lines, then ellipsis. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Follows the grid, and drops to the bottom of the canvas while the links
+   don't fill it. */
+.home-add {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* --- Suggestion box --- */
+
+.suggest-box {
+  position: relative;
+  flex: 1;
+}
+
+.suggest-input {
+  width: 100%;
+}
+
+.suggest-dropdown {
+  animation: menu-in var(--dur-flyout) var(--ease-decel);
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  color: var(--fg);
+}
+
+.suggest-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: 5px;
+  text-align: left;
+}
+
+.suggest-row {
+  transition: background-color var(--dur-state) linear;
+}
+
+.suggest-row.selected {
+  background: var(--bg-hover);
+}
+
+.suggest-glyph {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--fg-muted);
+}
+
+.suggest-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.suggest-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggest-detail {
+  font-size: 11px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Web chrome --- */
+
+.web-chrome {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  /* Anchor for this section's flyouts (trail, switcher). */
+  position: relative;
+}
+
+.toolbar {
+  width: 44px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 0;
+}
+
+.toolbar .icon-button {
+  color: var(--chrome-fg, var(--fg-muted));
+}
+
+/* Hover on adaptive surfaces must stay contrast-correct: the generic hover's
+   var(--fg) follows the OS theme, which can be the inverse of the page's
+   chrome colors (white icon on a light toolbar). Derive both the icon and
+   the hover wash from the adaptive foreground instead. */
+.toolbar .icon-button:hover,
+.topbar .icon-button:hover,
+.find-bar .icon-button:hover {
+  color: var(--chrome-fg, var(--fg));
+  background: color-mix(in srgb, currentColor 15%, transparent);
+}
+
+.toolbar-spacer {
+  flex: 1;
+}
+
+.toolbar-separator {
+  width: 22px;
+  height: 1px;
+  margin: 4px 0;
+  background: currentColor;
+  opacity: 0.25;
+}
+
+/* Grayscale so third-party brand colors don't fight the adaptive chrome
+   (docs/behaviors.md → Extensions). */
+.ext-icon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+  filter: grayscale(1);
+  opacity: 0.85;
+}
+
+/* Toolbar across the top (settings → Toolbar position): the same strip of
+   buttons, laid across the section above the page instead of down its left
+   edge. Each section keeps its own, so the two never share one bar. */
+.web-chrome.toolbar-top {
+  flex-direction: column;
+}
+
+.web-chrome.toolbar-top .toolbar {
+  width: auto;
+  height: 40px;
+  flex-direction: row;
+  padding: 0 6px;
+}
+
+.web-chrome.toolbar-top .toolbar-separator {
+  width: 1px;
+  height: 22px;
+  margin: 0 4px;
+}
+
+/* Flyouts drop from under the bar instead of out beside it; the spacer has
+   moved the Spaces button to the far end, so its flyout follows. */
+.web-chrome.toolbar-top .trail-flyout {
+  left: 8px;
+  top: 46px;
+}
+
+.web-chrome.toolbar-top .switcher-flyout {
+  left: auto;
+  right: 8px;
+  bottom: auto;
+  top: 46px;
+  animation-name: menu-in;
+}
+
+.web-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+}
+
+.loadbar-lane {
+  height: 3px;
+  flex: none;
+  position: relative;
+  overflow: hidden;
+}
+
+.loadbar {
+  position: absolute;
+  inset: 0;
+}
+
+.loadbar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  border-radius: 2px;
+  background: var(--chrome-fg, var(--accent));
+  animation: loadbar-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes loadbar-slide {
+  0% {
+    left: -40%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+.content-hole {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  background: transparent;
+}
+
+.splash {
+  position: absolute;
+  inset: 0;
+  animation: fade-in var(--dur-flyout) var(--ease-decel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--chrome-bg, var(--bg));
+  font-size: 15px;
+}
+
+.splash img {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+}
+
+.crash-panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  background: var(--bg);
+}
+
+/* --- Flyouts --- */
+
+.flyout {
+  position: absolute;
+  z-index: 101; /* above the light-dismiss scrim (.overlay, z 100) */
+  animation: menu-in var(--dur-flyout) var(--ease-decel);
+  min-width: 220px;
+  max-width: 380px;
+  padding: 4px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  color: var(--fg);
+}
+
+@keyframes menu-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.switcher-flyout {
+  left: 50px;
+  bottom: 14px;
+  /* Anchored at the bottom, so it slides up instead of down. */
+  animation-name: menu-in-up;
+}
+
+.trail-flyout {
+  /* Anchored to this section's .web-chrome, beside its toolbar. */
+  left: 50px;
+  top: 8px;
+  max-height: calc(100vh - 120px);
+}
+
+.flyout-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  border-radius: 5px;
+  text-align: left;
+}
+
+.flyout-item {
+  transition: background-color var(--dur-state) linear;
+}
+
+.flyout-item:hover {
+  background: var(--bg-hover);
+}
+
+.flyout-item-glyph {
+  width: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--fg-muted);
+}
+
+.flyout-item-text {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flyout-separator {
+  height: 1px;
+  margin: 4px 8px;
+  background: var(--border);
+}
+
+/* --- Trail flyout --- */
+
+.trail-list {
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.trail-empty {
+  padding: 12px;
+  color: var(--fg-muted);
+}
+
+.trail-row {
+  display: flex;
+  align-items: center;
+}
+
+.trail-entry {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 6px 10px;
+  border-radius: 5px;
+  text-align: left;
+}
+
+.trail-entry {
+  transition: background-color var(--dur-state) linear;
+}
+
+.trail-entry:hover {
+  background: var(--bg-hover);
+}
+
+.trail-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trail-detail {
+  font-size: 11px;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trail-delete {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  margin-right: 4px;
+}
+
+/* --- Find bar --- */
+
+.find-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  justify-content: flex-end;
+  animation: menu-in var(--dur-flyout) var(--ease-decel);
+}
+
+.find-input {
+  width: min(260px, 60%);
+}
+
+.find-count {
+  font-size: 12px;
+  color: var(--chrome-fg, var(--fg-muted));
+  opacity: 0.8;
+  min-width: 40px;
+  text-align: right;
+}
+
+/* --- Download toast (title bar pill: chrome-owned space, never covers pages) --- */
+
+.download-pill {
+  margin-left: 12px;
+  animation: menu-in var(--dur-flyout) var(--ease-decel);
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  max-width: 45vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  -webkit-app-region: no-drag;
+}
+
+/* --- Permission dialog --- */
+
+.permission-dialog p {
+  margin: 0 0 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* --- Screen share picker --- */
+
+.screen-share-ask {
+  margin: 0 0 14px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.screen-share-dialog {
+  max-width: min(760px, 92vw);
+}
+
+.screen-share-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.screen-share-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+  max-height: 46vh;
+  overflow-y: auto;
+}
+
+.screen-share-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-panel);
+  text-align: left;
+  transition:
+    background-color var(--dur-state) linear,
+    border-color var(--dur-state) linear;
+}
+
+.screen-share-item:hover {
+  background: var(--bg-hover);
+}
+
+.screen-share-item.selected {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.screen-share-item img,
+.screen-share-blank {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
+  border-radius: 4px;
+  background: rgba(127, 127, 127, 0.18);
+}
+
+.screen-share-name {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* --- Link dialog --- */
+
+.link-dialog-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.link-dialog-fields .text-input {
+  margin-bottom: 10px;
+}
