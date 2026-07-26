@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "searchTemplate": "https://www.qwant.com/?q={query}",
+  "suggestTemplate": "https://api.qwant.com/v3/suggest?q={query}&version=2",
+  "launchAtLogin": false,
+  "toolbarPosition": "side",
+  "backgroundTabMinutes": 30,
+  "extensions": [],
+  "openSpaces": [],
+  "managerWindow": { "x": 418, "y": 250, "width": 700, "height": 420, "maximized": false }
+}

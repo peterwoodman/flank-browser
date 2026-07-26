@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AppSettings, ToolbarPosition } from '@shared/types';
 import { invoke } from '../ipc';
+import { ImportExtensionsDialog } from './ImportExtensionsDialog';
 
 /**
  * Settings behind the Manager's gear: search/suggest URL templates,
@@ -19,6 +20,7 @@ export function SettingsPage({
   const [suggestTemplate, setSuggestTemplate] = useState(settings.suggestTemplate);
   const [tabMinutes, setTabMinutes] = useState(String(settings.backgroundTabMinutes));
   const [extError, setExtError] = useState('');
+  const [importing, setImporting] = useState(false);
 
   useEffect(() => {
     setSearchTemplate(settings.searchTemplate);
@@ -91,8 +93,8 @@ export function SettingsPage({
             }).then(onChanged)
           }
         >
-          <option value="side">Side of each section</option>
-          <option value="top">Top of each section</option>
+          <option value="side">Left Side</option>
+          <option value="top">Top</option>
         </select>
       </section>
 
@@ -132,19 +134,39 @@ export function SettingsPage({
             </button>
           </div>
         ))}
-        <button
-          className="button"
-          onClick={() =>
-            void invoke<{ ok: boolean; error?: string }>('extensions:add').then((r) => {
-              setExtError(r.error ?? '');
-              if (r.ok) onChanged();
-            })
-          }
-        >
-          Add unpacked extension folder…
-        </button>
+        <div className="settings-buttons">
+          <button
+            className="button"
+            onClick={() =>
+              void invoke<{ ok: boolean; error?: string }>('extensions:add').then((r) => {
+                setExtError(r.error ?? '');
+                if (r.ok) onChanged();
+              })
+            }
+          >
+            Add unpacked extension folder…
+          </button>
+          <button
+            className="button"
+            onClick={() => {
+              setExtError('');
+              setImporting(true);
+            }}
+          >
+            Import from another browser…
+          </button>
+        </div>
         {extError && <div className="settings-error">{extError}</div>}
       </section>
+
+      {importing && (
+        <ImportExtensionsDialog
+          onClose={(imported) => {
+            setImporting(false);
+            if (imported) onChanged();
+          }}
+        />
+      )}
     </div>
   );
 }

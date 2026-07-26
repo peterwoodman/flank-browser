@@ -2,12 +2,13 @@ import { ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { AppSettings } from '@shared/types';
-import { ManagerState, SpaceSummary } from '@shared/ipc-types';
+import { BrowserScanDto, ImportResultDto, ManagerState, SpaceSummary } from '@shared/ipc-types';
 import { settingsStore } from '../stores/settings-store';
 import { spacesStore } from '../stores/spaces-store';
 import { newId } from '../ids';
 import { iconUrl } from '../icons-protocol';
 import { parseExtensionManifest } from '../extension-manifest';
+import { importExtensions, scanBrowsers } from '../browser-import';
 import { applyLaunchAtLogin } from '../launch-at-login';
 import { dataDir } from '../paths';
 import * as windowManager from '../window-manager';
@@ -110,6 +111,14 @@ export function registerManagerIpc(): void {
       return { ok: true };
     }
   );
+
+  // Scanning touches every installed browser's profile folders; keep it off
+  // the renderer's critical path by only running it when the picker opens.
+  ipcMain.handle('flank:extensions:scanBrowsers', (): BrowserScanDto => scanBrowsers());
+
+  ipcMain.handle('flank:extensions:import', (_e, ids: string[]): ImportResultDto => {
+    return importExtensions(Array.isArray(ids) ? ids.map(String) : []);
+  });
 
   ipcMain.handle('flank:extensions:toggle', (_e, id: string, enabled: boolean) => {
     settingsStore.update((s) => {

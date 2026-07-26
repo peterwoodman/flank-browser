@@ -10,6 +10,27 @@ session, and up to two side-by-side page views. Cross-platform
 [`docs/overview.md`](docs/overview.md); `docs/architecture.md` covers how it
 is built.
 
+## A look at it
+
+![A Flank space window split in two: the Rust standard library documentation on the left with a narrow icon toolbar down its edge, and a Wikipedia article on the right under an address bar](docs/images/split.png)
+
+The page you launch stays put. Follow a link out of it and the second section
+opens beside it, so the thing you were reading is never replaced. Each
+section's chrome takes its page's colors, and an address bar appears only over
+a page that isn't one of the space's pinned links — the left has none, the
+right does.
+
+![A space's home view: a search box above a grid of pinned site icons](docs/images/home.png)
+
+Every space opens on its own home grid — pinned links and a search box, with no
+browser chrome until a page needs it. Each link keeps its page alive in the
+background, so going home and coming back resumes exactly where you were.
+
+![The Manager window showing four space tiles, each with a montage of site favicons](docs/images/manager.png)
+
+The Manager is the launcher: one tile per space, each showing the favicons of
+what's pinned inside it.
+
 ## Develop
 
 ```powershell
@@ -29,10 +50,43 @@ hot-reload in place.
 - **Remote debugging**: set `FLANK_DEBUG_PORT=9223` before launching to expose
   the Chromium DevTools protocol for every view (chrome UI and pages), e.g.
   `http://127.0.0.1:9223/json`.
+- **Throwaway profile**: `FLANK_DATA_DIR` points the whole data folder
+  somewhere else, so a demo or an experiment never touches real spaces.
 
 ```powershell
 $env:FLANK_DEBUG_PORT="9223"; npm run dev
 ```
+
+### Screenshots
+
+The images above are reproducible rather than hand-staged.
+[`tools/demo-profile/`](tools/demo-profile) holds a settings/spaces fixture of
+public, ad-free sites with window sizes chosen to frame well; copy it to a
+temporary folder, point `FLANK_DATA_DIR` at that folder, and the app starts as
+the demo rather than as yours. Favicons and the Chromium profile fill in on
+first run, so the fixture stays two JSON files.
+
+```powershell
+$demo = Join-Path $env:TEMP 'flank-demo-profile'
+New-Item -ItemType Directory -Path $demo -Force | Out-Null
+Copy-Item tools\demo-profile\*.json $demo -Force
+$env:FLANK_DATA_DIR = $demo; $env:FLANK_DEBUG_PORT = '9223'; npm run dev
+```
+
+[`tools/capture-window.ps1`](tools/capture-window.ps1) then captures one
+window to a PNG. It runs DPI-aware (a scaled display would otherwise yield a
+blurry upscale), takes the DWM frame bounds so the invisible resize border is
+excluded, and masks the rounded corners to transparency:
+
+```powershell
+.\tools\capture-window.ps1 -TitleLike 'Research' -Out docs\images\home.png
+```
+
+Window capture is the only option here: a space window composites a chrome
+view over separate `WebContentsView`s, so `capturePage()` inside the app can
+only ever photograph one layer of the stack. With `FLANK_DEBUG_PORT` set, the
+views can be posed first — `window.flank.invoke('section:openLink', …)` over
+the DevTools protocol opens pages without clicking through the UI.
 
 ## Checks
 

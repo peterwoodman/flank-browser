@@ -203,6 +203,28 @@ Both free-form entry points show an autocomplete dropdown while typing:
   enable/disable; remove). The installed set is reconciled with settings
   **once per app session**, on the first web view that initializes —
   extension changes take effect after an app restart.
+- **Import from another browser** offers the extensions already installed in
+  any Chromium browser on the machine (Chrome, Edge, Brave, Vivaldi, Chromium,
+  and their beta/canary channels). Those browsers keep extensions unpacked on
+  disk, so an import is a copy: Flank scans their profiles, lists what it
+  finds with the browser and profile it came from, and copies each selected
+  extension into its own data folder. An extension present in several
+  browsers or profiles is offered once, at its newest version.
+  - Copying, rather than loading from the browser's own folder, is what keeps
+    the import stable: that folder is per-version and the browser deletes it
+    when the extension next updates. The copy is Flank's own from then on —
+    it does not update, and disabling or removing it in the other browser
+    changes nothing here.
+  - Extension ids are preserved, because a browser writes the extension's
+    public key into the manifest when it unpacks it and Chromium derives the
+    id from that key rather than the folder path. Anything keyed to the id —
+    OAuth redirect URIs, allowlists — therefore still matches.
+  - What does *not* come across is the extension's own stored state: logins,
+    settings, and vaults live in the source browser's profile, not in the
+    extension folder. An imported extension starts signed out.
+  - Browser-bundled extensions (a PDF viewer, a web store connector) are
+    listed alongside real ones when they exist on disk. They are harmless to
+    skip, and Flank does not try to guess which are which.
 - Reconciliation tolerates failures: engine-built-in extensions (e.g. the
   PDF viewer) appear alongside user ones and cannot be removed; failures are
   logged and skipped rather than allowed to break view initialization.

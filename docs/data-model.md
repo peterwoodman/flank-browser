@@ -3,7 +3,8 @@
 All Flank data lives in one app-data folder, `Flank-Electron` inside the
 platform's per-user application data directory: `%APPDATA%` on Windows,
 `~/Library/Application Support` on macOS, `$XDG_CONFIG_HOME` (usually
-`~/.config`) on Linux.
+`~/.config`) on Linux. Setting `FLANK_DATA_DIR` puts it somewhere else
+instead, for demo and test profiles.
 
 ```
 <app data>/
@@ -17,6 +18,10 @@ platform's per-user application data directory: `%APPDATA%` on Windows,
 │   └── {authority}.ico    – fallback fetch for never-opened links (keyed by
 │                            host[_port]): the site's /favicon.ico, then a
 │                            domain-level icon service
+├── extensions/            – extensions imported from another browser, one
+│   └── {extensionId}/       folder each (behaviors.md → Extensions); created
+│                            on the first import. Extensions added by folder
+│                            stay where they are and are not copied here.
 ├── debug.log              – diagnostic log (errors from fire-and-forget tasks)
 └── Cache/, Local Storage/, Network/, … – the Chromium profile shared by every
                             space (engine-managed; Flank never reads these)
@@ -70,6 +75,8 @@ Design rules:
 - `managerWindow` — the Manager window's last bounds (spaces keep theirs
   in `spaces.json`).
 - `extensions[].path` — folder containing an unpacked Chromium extension.
+  Extensions added by folder are referenced where they sit; imported ones
+  point into `extensions/{extensionId}/` in the data folder.
 - `extensions[].browserExtensionId` — the id the browser engine assigned on
   install; written back after the first successful add.
 

@@ -67,7 +67,13 @@ running.)
 - **UI testing**: set `FLANK_DEBUG_PORT=9223` before `npm run dev`, then drive
   any view over the Chromium DevTools protocol
   (`http://127.0.0.1:9223/json` lists targets; `Runtime.evaluate` over a
-  target's WebSocket clicks and inspects the chrome UI).
+  target's WebSocket clicks and inspects the chrome UI). The IPC handlers all
+  take a space id, so `window.flank.invoke('section:openLink', …)` from the
+  manager target poses any window without clicking through it.
+- **Throwaway data**: `FLANK_DATA_DIR` relocates the whole data folder. Use it
+  rather than editing real spaces — `tools/demo-profile/` is a ready fixture,
+  and `tools/capture-window.ps1` screenshots a window (see README →
+  Screenshots).
 - The chrome renderer is a pure view of main-process state snapshots; UI bugs
   are usually main-process state bugs — check `buildState()` first.
 

@@ -202,6 +202,16 @@ dies. Bitwarden's SSO/2FA login broke exactly this way: its vault connector
 page reports the auth result via a content script minutes after the popup
 closed, by which time the worker was gone.
 
+Importing from another browser (`browser-import.ts`) walks a per-platform
+table of Chromium user-data directories, reads each one's `Local State` for
+its profiles' display names, and enumerates
+`<profile>/Extensions/<id>/<version>/`. Copies are taken into
+`extensions/<id>/` in the data folder, minus any top-level underscore-prefixed
+directory except `_locales` — browsers leave webstore verification data in
+`_metadata`, and Chromium refuses to load an unpacked extension that has
+reserved names at its root. Icons for the picker travel inline as data URLs,
+since `flank-icon://` only serves files under already-configured extensions.
+
 `chrome.windows.create` opens a standalone "popout" window on the shared
 session, registered as a tab (Bitwarden finishes SSO logins in one; Chrome
 shows these as `type: 'popup'` windows). `chrome.tabs.create` routes through
@@ -236,6 +246,9 @@ feature here, not a compatibility target.
 - `FLANK_DEBUG_PORT=<port>` exposes the Chromium remote-debugging endpoint
   for every view — chrome renderers and pages can be inspected or driven
   over the DevTools protocol (`http://127.0.0.1:<port>/json`).
+- `FLANK_DATA_DIR=<path>` relocates the whole data folder, Chromium profile
+  included. A demo or a test run then starts from its own spaces instead of
+  the real ones; the app is otherwise identical.
 
 ## Project layout
 
