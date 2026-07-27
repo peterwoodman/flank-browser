@@ -1,14 +1,10 @@
 # Flank
 
 A personal, space-oriented web browser: no tabs, no persistent address bar.
-Instead of one window full of tabs, the browser is a set of **spaces**, each
-opening as its own window with its own home grid of pinned links, its own
-session, and up to two side-by-side page views. Cross-platform
-(Windows/macOS/Linux), built with Electron, TypeScript, and React.
-
-[`docs/`](docs) is the specification — start at
-[`docs/overview.md`](docs/overview.md); `docs/architecture.md` covers how it
-is built.
+Instead of one window full of tabs, the browser is a set of **spaces** — each
+opens as its own window with its own grid of pinned sites, its own session, and
+up to two pages side by side. Cross-platform (Windows, macOS, Linux), built
+with Electron, TypeScript, and React.
 
 ## A look at it
 
@@ -17,19 +13,71 @@ is built.
 The page you launch stays put. Follow a link out of it and the second section
 opens beside it, so the thing you were reading is never replaced. Each
 section's chrome takes its page's colors, and an address bar appears only over
-a page that isn't one of the space's pinned links — the left has none, the
+a page that isn't one of the space's pinned sites — the left has none, the
 right does.
 
 ![A space's home view: a search box above a grid of pinned site icons](docs/images/home.png)
 
-Every space opens on its own home grid — pinned links and a search box, with no
-browser chrome until a page needs it. Each link keeps its page alive in the
-background, so going home and coming back resumes exactly where you were.
+Every space opens on its own home grid — pinned sites and a search box, with no
+browser chrome until a page needs it. Each pinned site keeps its page alive in
+the background, so going home and coming back resumes exactly where you were.
 
 ![The Manager window showing four space tiles, each with a montage of site favicons](docs/images/manager.png)
 
 The Manager is the launcher: one tile per space, each showing the favicons of
 what's pinned inside it.
+
+## Any site becomes an app
+
+Pinning a site to a space's home grid is Flank's equivalent of installing it.
+There is no install step and no eligibility test: where a conventional browser
+offers "Install app" only for sites that ship a web app manifest, Flank gives
+every pinned site the same app treatment and uses whatever metadata the site
+happens to publish.
+
+**What it reads.** When a site is pinned — and again whenever its page loads —
+Flank fetches the page's web app manifest and takes three things from it:
+
+- `short_name`/`name` becomes the tile's title, because it is the app's stable
+  name rather than a document title that changes with every page.
+- `icons` provides the tile and splash icon: the app's own installable artwork,
+  at full size instead of a 16 px favicon upscaled. Unpadded (`any`) icons rank
+  above `maskable` ones, which only look right cropped; `monochrome` and SVG
+  entries are skipped, and the largest raster wins.
+- `background_color`, or `theme_color` in its absence, is the canvas the launch
+  splash is painted on.
+
+The manifest is fetched from inside the page, so cookies apply and sites that
+serve a manifest only to signed-in users still work. Sites without one fall
+back through their declared `<link>` icons, the engine's favicon, and finally a
+domain icon service, with the document title as the name — the app treatment
+degrades in fidelity rather than switching off.
+
+The `theme-color` meta tag is read separately and continuously: it tints that
+section's toolbar and address bar, the window's title bar, and the native
+caption buttons, and it is re-read whenever the page changes it, so a site that
+swaps its color on a route change or with a dark stylesheet is followed rather
+than frozen at its first frame.
+
+**How it behaves.** Launching a pinned site shows a splash — its icon and name
+on its manifest background color — until the page is ready. The page then fills
+the window with a strip of icon buttons for chrome and no address bar, for as
+long as you stay on that site; wander off it and the bar appears. Links leaving
+the app open in the second section, so the app itself is never navigated away
+from. Pinned sites keep running in the background, and returning to one resumes
+its scroll position, media, and in-page state with no reload, until an idle
+timeout unloads it. Meanwhile the window is an ordinary OS window in the taskbar
+or dock, and `--space <name>` opens one directly, so a space can be pinned as a
+shortcut like any app.
+
+The result is that a set of sites behaves like a set of installed apps, without
+depending on a site's authors having asked for that.
+
+## Documentation
+
+[`docs/`](docs) is the specification of what the app currently does — start at
+[`docs/overview.md`](docs/overview.md), or go to
+[`docs/architecture.md`](docs/architecture.md) for how it is built.
 
 ## Develop
 
@@ -38,134 +86,14 @@ npm install
 npm run dev        # build + launch with HMR for the chrome UI
 ```
 
-Main-process or preload changes restart the app; chrome UI (React) changes
+Main-process and preload changes restart the app; chrome UI (React) changes
 hot-reload in place.
 
-- **App data**: `%APPDATA%\Flank-Electron` (or the platform equivalent of
-  Electron `userData`) — `settings.json`, `spaces.json`, `sessions/`,
-  `icons/`, `debug.log`, plus the shared Chromium profile.
-- **Diagnostics**: `debug.log` in the data folder collects errors and
-  fire-and-forget failures — check it first when something silently does
-  nothing.
-- **Remote debugging**: set `FLANK_DEBUG_PORT=9223` before launching to expose
-  the Chromium DevTools protocol for every view (chrome UI and pages), e.g.
-  `http://127.0.0.1:9223/json`.
-- **Throwaway profile**: `FLANK_DATA_DIR` points the whole data folder
-  somewhere else, so a demo or an experiment never touches real spaces.
-
 ```powershell
-$env:FLANK_DEBUG_PORT="9223"; npm run dev
+npm run typecheck  # main/preload (node) + renderer (web)
 ```
 
-### Screenshots
-
-The images above are reproducible rather than hand-staged.
-[`tools/demo-profile/`](tools/demo-profile) holds a settings/spaces fixture of
-public, ad-free sites with window sizes chosen to frame well; copy it to a
-temporary folder, point `FLANK_DATA_DIR` at that folder, and the app starts as
-the demo rather than as yours. Favicons and the Chromium profile fill in on
-first run, so the fixture stays two JSON files.
-
-```powershell
-$demo = Join-Path $env:TEMP 'flank-demo-profile'
-New-Item -ItemType Directory -Path $demo -Force | Out-Null
-Copy-Item tools\demo-profile\*.json $demo -Force
-$env:FLANK_DATA_DIR = $demo; $env:FLANK_DEBUG_PORT = '9223'; npm run dev
-```
-
-[`tools/capture-window.ps1`](tools/capture-window.ps1) then captures one
-window to a PNG. It runs DPI-aware (a scaled display would otherwise yield a
-blurry upscale), takes the DWM frame bounds so the invisible resize border is
-excluded, and masks the rounded corners to transparency:
-
-```powershell
-.\tools\capture-window.ps1 -TitleLike 'Research' -Out docs\images\home.png
-```
-
-Window capture is the only option here: a space window composites a chrome
-view over separate `WebContentsView`s, so `capturePage()` inside the app can
-only ever photograph one layer of the stack. With `FLANK_DEBUG_PORT` set, the
-views can be posed first — `window.flank.invoke('section:openLink', …)` over
-the DevTools protocol opens pages without clicking through the UI.
-
-## Checks
-
-```powershell
-npm run typecheck   # main/preload (node) + renderer (web)
-```
-
-## Package
-
-```powershell
-npm run package     # electron-vite build + electron-builder → dist/
-```
-
-Produces `dist/Flank-<version>-win.zip` on Windows (unzip anywhere and run
-`Flank.exe` — there is no installer), and zip/tar.gz equivalents when run on
-macOS/Linux.
-
-The Linux tar.gz can also be cross-packaged from any OS — electron-builder
-downloads the target platform's Electron binary:
-
-```powershell
-npm run build; npx electron-builder --linux   # → dist/flank-<version>.tar.gz
-```
-
-macOS **cannot** be cross-packaged: the `.app` bundle contains symlinks that
-non-Mac filesystems lose, and the ad-hoc `codesign` step (without which
-Apple Silicon refuses to launch the app) only exists on macOS. Build on a
-Mac — or a macOS CI runner:
-
-```bash
-npm install
-npm run build && npx electron-builder --mac   # → dist/Flank-<version>[-arm64]-mac.zip
-```
-
-This yields one zip per configured arch (arm64 for Apple Silicon, x64 for
-Intel), ad-hoc signed automatically since no signing identity is configured.
-
-On Linux, extract and run `./flank`. Electron bundles Chromium, so no
-runtime needs installing; on kernels without unprivileged user namespaces the
-bundled `chrome-sandbox` helper must be made setuid root
-(`chown root:root chrome-sandbox && chmod 4755 chrome-sandbox`). macOS zips
-are not notarized, so Gatekeeper blocks the first launch of the downloaded
-app: approve it under System Settings → Privacy & Security → "Open Anyway"
-(older macOS accepts right-click → Open). Copies built on the Mac itself
-launch without ceremony.
-
-Three Linux specifics, the first two handled by the app since there is no
-installer:
-
-- **Desktop entry.** On each start the packaged app writes
-  `~/.local/share/applications/flank.desktop` and its icon into the user's
-  icon theme, re-pointing them if the folder moved. This is what gives the
-  dock, app grid, and window switcher a real icon: desktop environments pair
-  a window to its launcher by matching the window's `app_id`/`WM_CLASS`
-  against the entry's base name (`flank`, set via `desktopName` in
-  `package.json`), and read the icon from there.
-- **Display server.** Flank runs on whatever the session provides: native
-  Wayland under Wayland, X11 under X11. Wayland's protocol forbids an app from
-  placing its own windows, so there window positions are not restored (sizes
-  are) and extension popups are placed by the compositor rather than anchored
-  to their sidebar button. `ELECTRON_OZONE_PLATFORM_HINT=x11` asks Electron
-  for XWayland, which brings both back where the build and session honor it.
-  Do not set `--ozone-platform` from the main process instead: the browser
-  process has already picked its backend, so only the child processes switch,
-  and the resulting window never paints — see `docs/architecture.md`.
-- **Screen sharing.** Under Wayland this runs through xdg-desktop-portal, so
-  the session needs a portal backend implementing ScreenCast — the GTK
-  backend alone does not, and a session without one ("Can't share your
-  screen" in Meet, and the same in any other browser) needs the one for its
-  desktop installed: `xdg-desktop-portal-gnome` under GNOME,
-  `-kde` under KDE, `-wlr` under wlroots compositors. Switching to XWayland
-  is not a workaround: an XWayland client cannot see Wayland windows' pixels,
-  so it captures a mostly blank screen.
-
-`debug.log` records the session and what follows from it, e.g.
-`Linux session: XDG_SESSION_TYPE=wayland ozone=session default
-positioning=unavailable (native Wayland)`.
-
-## Layout
+The source tree:
 
 ```
 src/main/      lifecycle, stores, window/view management, routing, favicons,
@@ -175,6 +103,114 @@ src/renderer/  React chrome UI: manager/ (grid, settings), space/ (sections,
                home, web chrome, flyouts, find bar), components/
 src/shared/    data model + IPC DTO types shared across processes
 ```
+
+## Debug
+
+- **App data** lives in `%APPDATA%\Flank-Electron`, or the platform equivalent
+  of Electron's `userData`: `settings.json`, `spaces.json`, `sessions/`,
+  `icons/`, `debug.log`, plus the shared Chromium profile.
+- **`debug.log`** collects errors and fire-and-forget failures. Check it first
+  when something silently does nothing.
+- **Remote debugging**: `FLANK_DEBUG_PORT` exposes the Chromium DevTools
+  protocol for every view, chrome UI and pages alike, at
+  e.g. `http://127.0.0.1:9223/json`.
+
+  ```powershell
+  $env:FLANK_DEBUG_PORT="9223"; npm run dev
+  ```
+
+- **Throwaway profile**: `FLANK_DATA_DIR` relocates the whole data folder, so
+  an experiment or a demo never touches real spaces.
+  [`tools/demo-profile/`](tools/demo-profile) is a ready-made fixture, and its
+  README covers reproducing the screenshots above.
+
+## Package
+
+```powershell
+npm run package    # electron-vite build + electron-builder → dist/
+```
+
+This builds for the OS it runs on. There is no installer on any platform: each
+artifact is an archive to unpack and run.
+
+### Windows
+
+`npm run package` produces `dist/Flank-<version>-win.zip`. Unzip it anywhere
+and run `Flank.exe`.
+
+### Linux
+
+`npm run package` on Linux produces `dist/flank-<version>.tar.gz`; extract it
+and run `./flank`. Electron bundles Chromium, so nothing else needs
+installing. On kernels without unprivileged user namespaces, the bundled
+`chrome-sandbox` helper has to be made setuid root:
+
+```bash
+chown root:root chrome-sandbox && chmod 4755 chrome-sandbox
+```
+
+The Linux archive can also be cross-packaged from any OS — electron-builder
+downloads the target platform's Electron binary:
+
+```powershell
+npm run build; npx electron-builder --linux
+```
+
+### macOS
+
+macOS **cannot** be cross-packaged. The `.app` bundle contains symlinks that
+non-Mac filesystems lose, and the ad-hoc `codesign` step — without which Apple
+Silicon refuses to launch the app — only exists on macOS. Build on a Mac, or a
+macOS CI runner:
+
+```bash
+npm install
+npm run build && npx electron-builder --mac
+```
+
+That yields one `dist/Flank-<version>[-arm64]-mac.zip` per configured arch
+(arm64 for Apple Silicon, x64 for Intel), ad-hoc signed automatically since no
+signing identity is configured.
+
+Because the zips are not notarized, Gatekeeper blocks the first launch of a
+downloaded copy: approve it under System Settings → Privacy & Security →
+"Open Anyway" (older macOS accepts right-click → Open). Copies built on the Mac
+itself launch without ceremony.
+
+## Linux desktop integration
+
+Three things behave differently on Linux. The first two the app handles itself,
+since there is no installer to do it.
+
+- **Desktop entry.** On each start the packaged app writes
+  `~/.local/share/applications/flank.desktop` and its icon into the user's icon
+  theme, re-pointing them if the folder moved. This is what gives the dock, app
+  grid, and window switcher a real icon: desktop environments pair a window to
+  its launcher by matching the window's `app_id`/`WM_CLASS` against the entry's
+  base name (`flank`, set via `desktopName` in `package.json`), and read the
+  icon from there.
+- **Display server.** Flank runs on whatever the session provides: native
+  Wayland under Wayland, X11 under X11. Wayland's protocol forbids an app from
+  placing its own windows, so there window positions are not restored (sizes
+  are) and extension popups are placed by the compositor rather than anchored
+  to their sidebar button. `ELECTRON_OZONE_PLATFORM_HINT=x11` asks Electron for
+  XWayland, which brings both back where the build and session honor it. Do not
+  set `--ozone-platform` from the main process instead: the browser process has
+  already picked its backend, so only the child processes switch and the
+  resulting window never paints — see
+  [`docs/architecture.md`](docs/architecture.md).
+- **Screen sharing.** Under Wayland this goes through xdg-desktop-portal, so
+  the session needs a portal backend implementing ScreenCast. The GTK backend
+  alone does not, and a session without one ("Can't share your screen" in Meet,
+  and the same in any other browser) needs the backend for its desktop
+  installed: `xdg-desktop-portal-gnome` under GNOME, `-kde` under KDE, `-wlr`
+  under wlroots compositors. Switching to XWayland is not a workaround — an
+  XWayland client cannot see Wayland windows' pixels, so it captures a mostly
+  blank screen.
+
+`debug.log` records which session was detected and what follows from it, e.g.
+`Linux session: XDG_SESSION_TYPE=wayland ozone=session default
+positioning=unavailable (native Wayland)`.
 
 ## License
 

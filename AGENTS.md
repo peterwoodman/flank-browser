@@ -71,9 +71,9 @@ running.)
   take a space id, so `window.flank.invoke('section:openLink', …)` from the
   manager target poses any window without clicking through it.
 - **Throwaway data**: `FLANK_DATA_DIR` relocates the whole data folder. Use it
-  rather than editing real spaces — `tools/demo-profile/` is a ready fixture,
-  and `tools/capture-window.ps1` screenshots a window (see README →
-  Screenshots).
+ rather than editing real spaces — `tools/demo-profile/` is a ready fixture,
+ and `tools/capture-window.ps1` screenshots a window (see
+ `tools/demo-profile/README.md`).
 - The chrome renderer is a pure view of main-process state snapshots; UI bugs
   are usually main-process state bugs — check `buildState()` first.
 
