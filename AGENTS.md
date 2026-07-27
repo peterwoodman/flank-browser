@@ -103,6 +103,11 @@ running.)
 - **Extension API warnings at startup** (`Permission 'x' is unknown`,
   `No source for require(webRequest)`) are expected partial-support noise from
   `electron-chrome-extensions`.
+- **Flank must not look like Electron.** The user agent is trimmed to plain
+  Chrome, and `extension-compat.ts` deletes Electron's partial `browser`
+  global and stubs the missing `chrome.webRequest` events. Extensions sniff
+  for all three: with any of them left as Electron ships it, LastPass either
+  fails its service-worker registration or syncs an empty vault.
 - **Don't set `--ozone-platform` from the main process** on Linux: the browser
   process has already picked its display backend, only the children switch,
   and the window never paints. `ELECTRON_OZONE_PLATFORM_HINT` is the

@@ -38,6 +38,12 @@ the Manager window as the launcher. Each space window is an Electron
   app-wide. Both it and the JSON stores live in the app's own data folder
   (`Flank-Electron` under the platform's user application data directory;
   `userData` is pointed there).
+- **Identity.** Flank presents Chrome's user agent, not Electron's. Electron's
+  default names the app and the framework between the Chrome and Safari
+  tokens, and both sites and extensions read it: LastPass took it for the
+  LastPass *desktop* app and ran a DOM-bound startup path that cannot work in
+  a service worker, leaving its vault empty. Flank embeds Chromium, so it says
+  so and nothing else.
 
 ## Window/view model
 
@@ -98,6 +104,9 @@ main process
   nudges, form-submit reporting, the adaptive color reporter
   (theme-color/computed colors, re-reported on change), DOM-ready/load
   signals for the load bar, and Ctrl+wheel zoom.
+- **`extension-compat.ts`** — registered on the shared session for extension
+  frames and service workers, patching two holes in the API surface that make
+  extensions fail on load rather than degrade (see Extensions below).
 
 ## Where the spec's behaviors attach
 
@@ -228,7 +237,27 @@ options page in the section's view.
 
 Support remains partial (e.g. `chrome.webRequest` is unavailable, so ad
 blockers degrade). Flank accepts that: extensions are an essentials-only
-feature here, not a compatibility target.
+feature here, not a compatibility target. What it does not accept is an
+extension failing to *load*, which two gaps in the namespace used to cause
+and `extension-compat.ts` now closes:
+
+- **No `browser` global.** Chrome defines none. Electron defines one carrying
+  only the APIs it implements natively, while `electron-chrome-extensions`
+  fills the rest of the surface (`windows`, `contextMenus`, `cookies`, …) onto
+  `chrome` alone — so an extension that prefers `browser` whenever it exists
+  lands on a namespace full of holes. Deleting it puts such extensions back on
+  the `chrome` path they ship for Chrome, and costs nothing: a Web Store
+  extension cannot depend on `browser` or it would not run in Chrome either.
+- **Inert `chrome.webRequest` events.** The namespace exists but holds only
+  `onHeadersReceived`, so a guard like `if (chrome.webRequest)` passes and the
+  next line throws. Stub events keep that a no-op — the listeners simply never
+  fire, which is the degradation above.
+
+Both matter most inside a service worker, where a top-level throw fails the
+worker's registration outright and takes the whole extension down with it.
+LastPass hit both. The patches run through `contextBridge.executeInMainWorld`,
+because Electron installs the extension globals *after* preloads execute —
+touching them at preload top level finds nothing there yet.
 
 ## Error handling & resilience
 
@@ -256,7 +285,7 @@ feature here, not a compatibility target.
 electron.vite.config.ts  main/preload/renderer builds
 electron-builder.yml     packaging targets (win zip, mac zip, linux tar.gz)
 src/main/                lifecycle, stores, windows, routing, extensions
-src/preload/             chrome.ts, content.ts
+src/preload/             chrome.ts, content.ts, extension-compat.ts
 src/renderer/            React chrome UI (manager/, space/, components/)
 src/shared/              data model + IPC DTO types
 resources/               app icons

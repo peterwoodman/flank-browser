@@ -26,6 +26,18 @@ if (process.env.FLANK_DEBUG_PORT) {
 // All Flank data (JSON + the Chromium profile) lives in one folder.
 app.setPath('userData', dataDir);
 app.setName('Flank');
+
+// Electron's default user agent names the app and Electron itself
+// ("Flank/0.7.0 … Electron/43.2.0" between the Chrome and Safari tokens), and
+// both sites and extensions sniff for it — LastPass reads it as the LastPass
+// desktop app and takes a DOM-bound code path that cannot run in a service
+// worker. A browser should present the browser it embeds, so trim the tail
+// back to what Chrome itself sends.
+app.userAgentFallback = app.userAgentFallback.replace(
+  /\(KHTML, like Gecko\).*$/,
+  `(KHTML, like Gecko) Chrome/${process.versions.chrome.split('.')[0]}.0.0.0 Safari/537.36`
+);
+
 registerIconSchemePrivileges();
 
 // Single instance: second launches route into the running app. The --space

@@ -94,7 +94,7 @@ export const TRAIL_CAP = 500;
 export function defaultSettings(): AppSettings {
   return {
     version: 1,
-    searchTemplate: 'https://www.qwant.com/?q={query}',
+    searchTemplate: 'https://www.ecosia.org/search?method=index&q={query}',
     suggestTemplate: 'https://api.qwant.com/v3/suggest?q={query}&version=2',
     launchAtLogin: false,
     toolbarPosition: 'side',

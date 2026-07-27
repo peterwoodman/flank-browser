@@ -2,7 +2,8 @@ import { contextBridge } from 'electron';
 
 /**
  * Smooths two edges of the extension API surface that make otherwise working
- * extensions fail on load rather than degrade (docs/behaviors.md → Extensions).
+ * extensions fail on load rather than degrade (docs/architecture.md →
+ * Extensions).
  *
  * 1. Chrome exposes no `browser` global at all. Electron does, and it carries
  *    only the extension APIs Electron implements natively — `electron-chrome-
