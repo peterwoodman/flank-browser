@@ -1,5 +1,5 @@
 import { ipcMain } from 'electron';
-import { Rect, Side, SuggestionDto, SwitcherSpaceDto } from '@shared/space-types';
+import { Rect, Side, SuggestionDto } from '@shared/space-types';
 import { SpaceLink } from '@shared/types';
 import * as windowManager from '../window-manager';
 import { spacesStore } from '../stores/spaces-store';
@@ -191,21 +191,7 @@ export function registerSpaceIpc(): void {
     windowManager.refreshSpace(space.id);
   });
 
-  // --- Space switcher ---
-
-  ipcMain.handle('flank:switcher:list', (_e, spaceId: string): SwitcherSpaceDto[] => {
-    return spacesStore.all.map((s) => ({
-      id: s.id,
-      name: s.name,
-      isCurrent: s.id === spaceId,
-      isOpen: windowManager.isSpaceOpen(s.id)
-    }));
-  });
-
-  ipcMain.handle('flank:switcher:open', (_e, _fromSpaceId: string, targetId: string) => {
-    windowManager.openSpace(String(targetId));
-  });
-
+  // The space window's Spaces button; the Manager is where spaces are picked.
   ipcMain.handle('flank:manager:open', () => {
     openManager();
   });

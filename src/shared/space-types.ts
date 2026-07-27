@@ -44,13 +44,6 @@ export interface SectionDto {
   splash: SplashDto | null;
 }
 
-export interface SwitcherSpaceDto {
-  id: string;
-  name: string;
-  isCurrent: boolean;
-  isOpen: boolean;
-}
-
 export interface ExtensionButtonDto {
   id: string;
   name: string;

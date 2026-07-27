@@ -17,8 +17,10 @@ per OS called out where it applies.
   (cookies, logins, extensions).
 - **Launcher flow** — launching Flank reopens the spaces from the last
   session; with nothing to restore it opens the **Manager window**, a
-  launcher-styled grid of space tiles. Every space window also has a
-  space switcher at the end of the left section's toolbar, and a space can be
+  launcher-styled grid of space tiles. The Manager is the hub every space is
+  reached from, and it stays open behind them — minimized while you are in a
+  space, restored when the last space window closes, and raised any time by the
+  Spaces button at the end of the left section's toolbar. A space can also be
   opened directly with the `--space <name or id>` argument (for pinned
   shortcuts). The app exits when its last window closes.
 - **Two view states per section**: *home* (a launcher-like grid of pinned

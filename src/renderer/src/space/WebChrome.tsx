@@ -5,7 +5,6 @@ import { invoke, on, send } from '../ipc';
 import { SuggestInput } from './SuggestInput';
 import { FindBar } from './FindBar';
 import { TrailFlyout } from './TrailFlyout';
-import { SwitcherFlyout } from './SwitcherFlyout';
 import {
   BackIcon,
   CloseIcon,
@@ -44,7 +43,6 @@ export function WebChrome({
   const side = section.side;
   const holeRef = useRef<HTMLDivElement>(null);
   const [trailOpen, setTrailOpen] = useState(false);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
 
   // Ctrl+F in the page arrives from the main process (the shortcut lands in
@@ -163,7 +161,11 @@ export function WebChrome({
         ))}
         <div className="toolbar-spacer" />
         {side === 'left' && (
-          <button className="icon-button" title="Spaces" onClick={() => setSwitcherOpen(true)}>
+          <button
+            className="icon-button"
+            title="Spaces"
+            onClick={() => void invoke('manager:open')}
+          >
             <GridIcon />
           </button>
         )}
@@ -227,7 +229,6 @@ export function WebChrome({
           onClose={() => setTrailOpen(false)}
         />
       )}
-      {switcherOpen && <SwitcherFlyout spaceId={spaceId} onClose={() => setSwitcherOpen(false)} />}
     </div>
   );
 }

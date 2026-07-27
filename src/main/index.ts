@@ -87,7 +87,10 @@ if (!app.requestSingleInstanceLock({ spaceArg: parseSpaceArg(process.argv) })) {
   });
 }
 
-// The app exits when its last window closes (no tray, all platforms).
+// The app exits when its last window closes (no tray, all platforms). Closing a
+// space window lands you at the Manager because the Manager was open behind it
+// all along (see openSpace in window-manager), not because anything is reopened
+// here — so closing every window really does mean "leave".
 app.on('window-all-closed', () => {
   app.quit();
 });

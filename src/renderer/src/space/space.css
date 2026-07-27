@@ -94,7 +94,7 @@
   right: 10px;
 }
 
-.home-switcher {
+.home-spaces {
   position: absolute;
   bottom: 10px;
   left: 10px;
@@ -267,7 +267,7 @@
   flex: 1;
   min-height: 0;
   display: flex;
-  /* Anchor for this section's flyouts (trail, switcher). */
+  /* Anchor for this section's flyouts (trail). */
   position: relative;
 }
 
@@ -338,19 +338,10 @@
   margin: 0 4px;
 }
 
-/* Flyouts drop from under the bar instead of out beside it; the spacer has
-   moved the Spaces button to the far end, so its flyout follows. */
+/* Flyouts drop from under the bar instead of out beside it. */
 .web-chrome.toolbar-top .trail-flyout {
   left: 8px;
   top: 46px;
-}
-
-.web-chrome.toolbar-top .switcher-flyout {
-  left: auto;
-  right: 8px;
-  bottom: auto;
-  top: 46px;
-  animation-name: menu-in;
 }
 
 .web-main {
@@ -454,20 +445,6 @@
   color: var(--fg);
 }
 
-@keyframes menu-in-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-}
-
-.switcher-flyout {
-  left: 50px;
-  bottom: 14px;
-  /* Anchored at the bottom, so it slides up instead of down. */
-  animation-name: menu-in-up;
-}
-
 .trail-flyout {
   /* Anchored to this section's .web-chrome, beside its toolbar. */
   left: 50px;
@@ -490,14 +467,6 @@
 
 .flyout-item:hover {
   background: var(--bg-hover);
-}
-
-.flyout-item-glyph {
-  width: 18px;
-  flex: none;
-  display: grid;
-  place-items: center;
-  color: var(--fg-muted);
 }
 
 .flyout-item-text {

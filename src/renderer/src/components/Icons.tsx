@@ -83,13 +83,6 @@ export const PromoteIcon = (): React.JSX.Element => (
   </Icon>
 );
 
-export const SettingsIcon = (): React.JSX.Element => (
-  <Icon>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-  </Icon>
-);
-
 export const GridIcon = (): React.JSX.Element => (
   <Icon>
     <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -103,19 +96,6 @@ export const PlusIcon = (): React.JSX.Element => (
   <Icon>
     <path d="M12 5v14" />
     <path d="M5 12h14" />
-  </Icon>
-);
-
-export const CheckIcon = (): React.JSX.Element => (
-  <Icon>
-    <path d="m4 12 5 5L20 6" />
-  </Icon>
-);
-
-export const WindowIcon = (): React.JSX.Element => (
-  <Icon>
-    <rect x="4" y="5" width="16" height="14" rx="2" />
-    <path d="M4 9h16" />
   </Icon>
 );
 

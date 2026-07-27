@@ -70,10 +70,11 @@ Design rules:
   unloaded.
 - `openSpaces` — ids of the spaces open in the last session,
   reopened on the next plain launch (see `behaviors.md` → Startup). The
-  final window close of a session is not recorded (that is the app
-  quitting, not the space being closed).
+  final window close of a session is not recorded (that ends the session,
+  rather than meaning you are done with the space).
 - `managerWindow` — the Manager window's last bounds (spaces keep theirs
-  in `spaces.json`).
+  in `spaces.json`). Never captured while it is minimized behind a space
+  window, so being tucked away does not overwrite where it sits.
 - `extensions[].path` — folder containing an unpacked Chromium extension.
   Extensions added by folder are referenced where they sit; imported ones
   point into `extensions/{extensionId}/` in the data folder.

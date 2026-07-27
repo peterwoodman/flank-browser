@@ -4,7 +4,6 @@ import type { SectionDto, SuggestionDto } from '@shared/space-types';
 import { invoke } from '../ipc';
 import { ContextMenu } from '../components/ContextMenu';
 import { LinkDialog } from './LinkDialog';
-import { SwitcherFlyout } from './SwitcherFlyout';
 import { CloseIcon, GridIcon, PlusIcon } from '../components/Icons';
 import { SuggestInput } from './SuggestInput';
 
@@ -26,7 +25,6 @@ export function HomeView({
   const side = section.side;
   const [menu, setMenu] = useState<{ x: number; y: number; link: SpaceLink } | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
-  const [switcherOpen, setSwitcherOpen] = useState(false);
   const [dragOrder, setDragOrder] = useState<string[] | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
 
@@ -116,9 +114,9 @@ export function HomeView({
 
       {side === 'left' && (
         <button
-          className="icon-button home-switcher"
+          className="icon-button home-spaces"
           title="Spaces"
-          onClick={() => setSwitcherOpen(true)}
+          onClick={() => void invoke('manager:open')}
         >
           <GridIcon />
         </button>
@@ -164,8 +162,6 @@ export function HomeView({
           onCancel={() => setDialog(null)}
         />
       )}
-
-      {switcherOpen && <SwitcherFlyout spaceId={spaceId} onClose={() => setSwitcherOpen(false)} />}
     </div>
   );
 }

@@ -55,20 +55,34 @@ is on.
 There is no system tray or background residency; windows are the only UI.
 
 - **Launching Flank** (Start menu, pinned icon) reopens the spaces that
-  were open in the last session; with none to restore it opens the **Manager
-  window** — the front door and launcher. If Flank is already running, a
-  second launch focuses an open window instead (single instance).
+  were open in the last session, with the **Manager window** — the front door
+  and launcher — minimized behind them; with none to restore the Manager opens
+  in front. If Flank is already running, a second launch focuses an open window
+  instead (single instance).
 - **`--space <name or id>`** as a command-line argument opens that
   space directly (names are matched case-insensitively; quoted names with
   spaces work). This enables pinned per-space shortcuts, and it also
   routes into the running instance.
-- **The space switcher** (grid icon) belongs to the **left** section — at the
+- **The Manager stays open behind the spaces**, minimized whenever a space
+  window opens — the hub is always one window away, and closing the last space
+  window restores it rather than leaving you with nothing. It is a real window,
+  not a hidden one, so the desktop lists it and treats it like any other: that
+  is what keeps leaving Flank predictable, with no guessing about who closed a
+  window. Closing the Manager itself while a space is open takes the hub away
+  until the next space opens.
+- **The Spaces button** (grid icon) belongs to the **left** section — at the
   far end of its toolbar when it shows a page, and in the bottom-left corner of
-  its home view. It lists all spaces — click one to open or focus it.
-  The current space shows a checkmark, other open ones a window marker.
-  "Manage spaces…" opens the Manager.
-- **Closing the last window exits Flank.** Sessions are saved on every window
-  close (and autosaved), so reopening a space restores its pages.
+  its home view. It brings the Manager back up. Spaces are switched through the
+  Manager rather than from a menu inside the space window, so there is one place
+  where every space lives.
+- **Closing the last window exits Flank** — including the desktop's "close all
+  windows", which reaches the minimized Manager along with the space windows.
+  Sessions are saved on every window close (and autosaved), so reopening a space
+  restores its pages.
+
+> **Linux:** minimizing is a request the window manager may decline (and Wayland
+> compositors need not implement it at all), so the Manager may simply sit
+> behind the space window instead of being tucked away.
 
 ## Manager window
 
@@ -195,13 +209,14 @@ Toolbar buttons, in order — top to bottom on the side, left to right on top:
 | Refresh | both | Reloads the current page |
 | Trail | both; hidden unless the view has visited more than the current page | Expands the trail flyout (history of this view) |
 | Extension icons | both | One icon per enabled extension, rendered grayscale to match the monochrome toolbar glyphs. Clicking opens the extension's popup in a small window anchored to the button — beside it, or below it when the toolbar is on top; extensions without a popup open their options page instead |
-| Space switcher | **left** section only; pushed to the far end of the toolbar (bottom on the side, right on top), and also on the home view | Opens a flyout listing all spaces (checkmark = this window, window marker = open elsewhere) plus "Manage spaces…" |
+| Spaces | **left** section only; pushed to the far end of the toolbar (bottom on the side, right on top), and also on the home view | Opens (or focuses) the Manager window |
 
 Each section has its own toolbar; buttons act on that section's view only. The
-space switcher is the exception — only on the left, pushed to the toolbar's
+Spaces button is the exception — only on the left, pushed to the toolbar's
 far end, and shown on both the page toolbar and the home view (where it stays
-in the bottom-left corner regardless of the toolbar's position). Flyouts open
-from the toolbar edge: beside it when it is on the side, below it when on top.
+in the bottom-left corner regardless of the toolbar's position); it acts on the
+app rather than on the view. Flyouts open from the toolbar edge: beside it when
+it is on the side, below it when on top.
 
 While a page is loading, a thin indeterminate progress bar sits at the top of
 the section's content area, tinted with the page's adaptive colors. It appears

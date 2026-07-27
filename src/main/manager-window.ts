@@ -34,11 +34,24 @@ export function titleBarOverlayColors(schemeId?: string): {
   };
 }
 
-/** Opens the Manager window (at most one instance), or focuses the open one. */
-export function openManager(): BrowserWindow {
+/** Where the Manager sits once it has been asked for. */
+export type ManagerMode = 'focus' | 'minimized';
+
+/**
+ * Opens the Manager window (at most one instance), or brings the open one
+ * forward. `'minimized'` leaves it minimized instead — the hub waiting behind a
+ * space window rather than covering the screen, while still holding the window
+ * (and its taskbar entry) that exiting Flank goes through; see `openSpace` in
+ * `window-manager`.
+ */
+export function openManager(mode: ManagerMode = 'focus'): BrowserWindow {
   if (managerWindow) {
-    if (managerWindow.isMinimized()) managerWindow.restore();
-    managerWindow.focus();
+    if (mode === 'minimized') {
+      managerWindow.minimize();
+    } else {
+      if (managerWindow.isMinimized()) managerWindow.restore();
+      managerWindow.focus();
+    }
     return managerWindow;
   }
 
@@ -65,6 +78,15 @@ export function openManager(): BrowserWindow {
 
   if (opts.maximized) win.maximize();
   win.once('ready-to-show', () => {
+    if (mode === 'minimized') {
+      // Minimizing a window that has never been shown does not reliably give it
+      // a taskbar entry, and the entry is the point of keeping the hub open, so
+      // show it first — without taking focus from the space window opening.
+      win.showInactive();
+      if (!opts.maximized) applyRestoredPosition(win, opts);
+      win.minimize();
+      return;
+    }
     win.show();
     if (!opts.maximized) applyRestoredPosition(win, opts);
   });
