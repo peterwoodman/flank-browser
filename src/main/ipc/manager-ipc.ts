@@ -21,7 +21,13 @@ function spaceSummaries(): SpaceSummary[] {
       if (!link.icon) continue;
       if (fs.existsSync(path.join(dataDir, link.icon))) icons.push(iconUrl(link.icon));
     }
-    return { id: space.id, name: space.name, open: windowManager.isSpaceOpen(space.id), icons };
+    return {
+      id: space.id,
+      name: space.name,
+      colorScheme: space.colorScheme,
+      open: windowManager.isSpaceOpen(space.id),
+      icons
+    };
   });
 }
 
@@ -34,13 +40,16 @@ export function registerManagerIpc(): void {
     spacesStore.create(String(name).trim() || 'New space');
   });
 
-  ipcMain.handle('flank:spaces:rename', (_e, id: string, name: string) => {
-    const trimmed = String(name).trim();
-    if (trimmed) {
-      spacesStore.rename(id, trimmed);
+  ipcMain.handle(
+    'flank:spaces:update',
+    (_e, id: string, patch: { name?: string; colorScheme?: string }) => {
+      spacesStore.update(id, {
+        name: typeof patch?.name === 'string' ? patch.name.trim() : undefined,
+        colorScheme: typeof patch?.colorScheme === 'string' ? patch.colorScheme : undefined
+      });
       windowManager.refreshSpace(id);
     }
-  });
+  );
 
   // Removes the space's session file and its entry everywhere; never touches
   // shared browser data.

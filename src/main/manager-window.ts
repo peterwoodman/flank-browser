@@ -1,4 +1,5 @@
 import { BrowserWindow, nativeTheme } from 'electron';
+import { colorScheme, washTopColor } from '@shared/color-schemes';
 import { settingsStore } from './stores/settings-store';
 import { applyRestoredPosition, capturePlacement, windowOptionsFrom } from './placement';
 import { chromePreloadPath, loadChromeRoute } from './renderer-url';
@@ -14,16 +15,20 @@ let managerWindow: BrowserWindow | null = null;
 
 /**
  * Colors for the native caption-button strip. The strip takes one flat color,
- * so this is the backdrop wash's color where it sits — the base tinted by
- * `--wash-veil` and lifted by `--wash-glow` (styles.css) — rather than the
- * bare window base, which would show as a patch on the title bar. Keep the two
- * in step; the wash is deliberately vertical so one color can match it across
- * the whole width. Pages override this with their own adaptive colors.
+ * so this is the backdrop wash's color where it sits, computed from the same
+ * ingredients as the CSS wash (styles.css) rather than the bare window base,
+ * which would show as a patch on the title bar. The wash is deliberately
+ * vertical so one color can match it across the whole width. A space window
+ * passes its own scheme; pages override the result with their adaptive colors.
  */
-export function titleBarOverlayColors(): { color: string; symbolColor: string; height: number } {
+export function titleBarOverlayColors(schemeId?: string): {
+  color: string;
+  symbolColor: string;
+  height: number;
+} {
   const dark = nativeTheme.shouldUseDarkColors;
   return {
-    color: dark ? '#374145' : '#f7f9fa',
+    color: washTopColor(colorScheme(schemeId), dark),
     symbolColor: dark ? '#f0f0f0' : '#1a1a1a',
     height: TITLEBAR_HEIGHT
   };

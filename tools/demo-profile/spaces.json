@@ -6,6 +6,7 @@
       "name": "Research",
       "order": 0,
       "splitRatio": 0.5,
+      "colorScheme": "azure",
       "window": { "x": 318, "y": 170, "width": 900, "height": 620, "maximized": false },
       "links": [
         {
@@ -111,6 +112,7 @@
       "name": "Dev",
       "order": 1,
       "splitRatio": 0.5,
+      "colorScheme": "fern",
       "window": { "x": 78, "y": 45, "width": 1380, "height": 850, "maximized": false },
       "links": [
         {
@@ -168,6 +170,7 @@
       "name": "Reading",
       "order": 2,
       "splitRatio": 0.5,
+      "colorScheme": "amber",
       "window": { "x": 318, "y": 170, "width": 900, "height": 620, "maximized": false },
       "links": [
         {
@@ -209,6 +212,7 @@
       "name": "Reference",
       "order": 3,
       "splitRatio": 0.5,
+      "colorScheme": "iris",
       "window": { "x": 318, "y": 170, "width": 900, "height": 620, "maximized": false },
       "links": [
         {

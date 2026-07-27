@@ -91,6 +91,9 @@ export function refreshSpace(spaceId: string): void {
   const controller = controllers.get(spaceId);
   if (!controller) return;
   controller.pushState();
+  // The color scheme may have changed, and the native caption strip is painted
+  // outside the chrome's state snapshot.
+  controller.refreshCaptionColors();
   // Edited/added links may need their tile icon (re)fetched.
   fireAndForget('refresh favicons', controller.refreshFavicons());
 }

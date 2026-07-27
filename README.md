@@ -25,7 +25,9 @@ the background, so going home and coming back resumes exactly where you were.
 ![The Manager window showing four space tiles, each with a montage of site favicons](docs/images/manager.png)
 
 The Manager is the launcher: one tile per space, each showing the favicons of
-what's pinned inside it.
+what's pinned inside it. A space also picks the color its window's backdrop is
+washed in, from a small palette, so which space a window belongs to reads at a
+glance — the tile is tinted to match.
 
 ## Any site becomes an app
 

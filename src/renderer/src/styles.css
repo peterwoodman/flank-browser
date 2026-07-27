@@ -15,18 +15,16 @@
 
   /* Wash over otherwise empty chrome canvases: light lifting off the top
      edge, an accent veil throughout, and the accent pooling at the bottom.
+     The accent is the theme's unless a scope names its own — a space window
+     mixes it from the space's color scheme (docs/ui.md → Backdrop).
 
      Vertical rather than radial on purpose. The native caption-button strip
      can only take one flat color, so anything that varies across the window's
      width would make that strip read as a patch on the title bar; see
      titleBarOverlayColors() in the main process, which pairs with these. */
   --wash-glow: rgba(255, 255, 255, 0.7);
-  --wash-tint: rgba(0, 103, 192, 0.14);
-  --wash-veil: rgba(0, 103, 192, 0.05);
-  --wash:
-    linear-gradient(180deg, var(--wash-glow), transparent 45%),
-    linear-gradient(0deg, var(--wash-tint), transparent 55%),
-    linear-gradient(var(--wash-veil), var(--wash-veil));
+  --wash-tint-pct: 14%;
+  --wash-veil-pct: 5%;
 
   /* Adaptive page colors; overridden per section at runtime. */
   --chrome-bg: var(--bg);
@@ -53,8 +51,37 @@
     /* Dark backgrounds swallow a wash: white lifts #202020 far less per unit
        of alpha than it darkens #f3f3f3, so these run stronger than they look. */
     --wash-glow: rgba(255, 255, 255, 0.09);
-    --wash-tint: rgba(76, 194, 255, 0.2);
-    --wash-veil: rgba(76, 194, 255, 0.09);
+    --wash-tint-pct: 20%;
+    --wash-veil-pct: 9%;
+  }
+}
+
+/* Every scope that carries a wash. The tints are derived here rather than
+   inherited from :root because a custom property resolves its var()s where it
+   is declared — tints computed on :root would keep :root's accent even where a
+   space names its own. Scopes that do pass one (a space window, and the
+   Manager's tiles and swatches previewing one) set --wash-accent-light and
+   --wash-accent-dark, and the OS theme picks between them here rather than in
+   JS. */
+:root,
+.space-root,
+.space-tile,
+.wash-swatch {
+  --wash-accent: var(--wash-accent-light, var(--accent));
+  --wash-tint: color-mix(in srgb, var(--wash-accent) var(--wash-tint-pct), transparent);
+  --wash-veil: color-mix(in srgb, var(--wash-accent) var(--wash-veil-pct), transparent);
+  --wash:
+    linear-gradient(180deg, var(--wash-glow), transparent 45%),
+    linear-gradient(0deg, var(--wash-tint), transparent 55%),
+    linear-gradient(var(--wash-veil), var(--wash-veil));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root,
+  .space-root,
+  .space-tile,
+  .wash-swatch {
+    --wash-accent: var(--wash-accent-dark, var(--accent));
   }
 }
 

@@ -75,7 +75,21 @@ section-wide one.
 
 The title bar is `titleBarStyle: 'hidden'` with `titleBarOverlay` (native
 caption buttons) on Windows/Linux; the title text renders in the chrome view
-and the overlay's symbol color follows the adaptive page colors.
+and the overlay's symbol color follows the adaptive page colors. With no page to
+follow, the strip takes the backdrop wash's color at the top of the window,
+which main composites from the space's color scheme using the same base, veil,
+and glow numbers as the CSS (`shared/color-schemes.ts`) so the two cannot drift
+apart. Since the strip is painted outside the chrome's state snapshots, a scheme
+change re-applies it explicitly rather than waiting for the chrome to report
+colors it has no reason to re-report.
+
+A space's scheme reaches the CSS as a light and a dark accent set on the chrome
+root, and the stylesheet mixes the wash's veil and pool from whichever the OS
+theme selects. Those mixes are re-declared in every scope that carries an accent
+(the space root, and the Manager's tiles and swatches) rather than once on
+`:root`: a custom property's `var()`s resolve in the scope that *declares* it,
+so a tint derived on `:root` would keep `:root`'s accent everywhere it
+inherited.
 
 ```
 main process
@@ -287,7 +301,7 @@ electron-builder.yml     packaging targets (win zip, mac zip, linux tar.gz)
 src/main/                lifecycle, stores, windows, routing, extensions
 src/preload/             chrome.ts, content.ts, extension-compat.ts
 src/renderer/            React chrome UI (manager/, space/, components/)
-src/shared/              data model + IPC DTO types
+src/shared/              data model + IPC DTO types, backdrop color schemes
 resources/               app icons
 docs/                    this specification
 ```

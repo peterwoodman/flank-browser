@@ -59,6 +59,8 @@ export class SpaceWindowController {
   private chromeReady = false;
   private readonly permissionResolvers = new Map<string, (allow: boolean) => void>();
   private screenShareResolver: ((choice: string | null) => void) | null = null;
+  /** Last colors the chrome reported for the left section's page; null on home. */
+  private chromeColors: PageColors | null = null;
   private extensionPopup: ExtensionPopup | null = null;
 
   onClosed: () => void = () => {};
@@ -78,7 +80,9 @@ export class SpaceWindowController {
       icon: windowIcon,
       title: space.name,
       titleBarStyle: 'hidden',
-      ...(process.platform !== 'darwin' ? { titleBarOverlay: titleBarOverlayColors() } : {}),
+      ...(process.platform !== 'darwin'
+        ? { titleBarOverlay: titleBarOverlayColors(space.colorScheme) }
+        : {}),
       backgroundColor: nativeTheme.shouldUseDarkColors ? '#202020' : '#f3f3f3'
     });
     applyRestoredPosition(this.win, opts);
@@ -567,12 +571,26 @@ export class SpaceWindowController {
    * buttons to match (docs/ui.md → Adaptive colors).
    */
   setChromeColors(colors: PageColors | null): void {
+    this.chromeColors = colors;
+    this.applyCaptionColors();
+  }
+
+  /**
+   * Re-tints the caption buttons after the space's color scheme changed. The
+   * chrome only reports colors when the page's change, so this can't wait for
+   * the next report.
+   */
+  refreshCaptionColors(): void {
+    this.applyCaptionColors();
+  }
+
+  private applyCaptionColors(): void {
     if (process.platform === 'darwin') return; // no overlay buttons to tint
     try {
-      const fallback = titleBarOverlayColors();
+      const wash = titleBarOverlayColors(this.space.colorScheme);
       this.win.setTitleBarOverlay({
-        color: colors?.bg || fallback.color,
-        symbolColor: colors?.fg || fallback.symbolColor
+        color: this.chromeColors?.bg || wash.color,
+        symbolColor: this.chromeColors?.fg || wash.symbolColor
       });
     } catch {
       // Overlay tinting is cosmetic; some platforms/versions lack support.
@@ -688,6 +706,7 @@ export class SpaceWindowController {
     return {
       spaceId: this.space.id,
       name: this.space.name,
+      colorScheme: this.space.colorScheme,
       links: [...this.space.links].sort((a, b) => a.order - b.order),
       splitRatio: this.space.splitRatio,
       rightOpen: this.rightOpen,

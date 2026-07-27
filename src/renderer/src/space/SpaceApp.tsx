@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SpaceStateDto, SectionDto } from '@shared/space-types';
 import { invoke, on, send } from '../ipc';
+import { washVars } from '../wash';
 import { OverlayContext, OverlayController } from './overlay';
 import { HomeView } from './HomeView';
 import { WebChrome } from './WebChrome';
@@ -185,7 +186,8 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
 
   return (
     <OverlayContext.Provider value={overlay}>
-      <div className="space-root">
+      {/* The space's color scheme feeds the backdrop wash (docs/ui.md). */}
+      <div className="space-root" style={washVars(state.colorScheme)}>
         <header
           className={state.left.mode === 'home' ? 'titlebar titlebar-wash' : 'titlebar'}
           style={rootVars}

@@ -4,6 +4,8 @@ import type { AppSettings } from './types';
 export interface SpaceSummary {
   id: string;
   name: string;
+  /** Backdrop scheme id, so the tile previews the space's color. */
+  colorScheme: string;
   open: boolean;
   /** flank-icon:// URLs for the favicon montage (up to 4); empty = show the initial letter. */
   icons: string[];

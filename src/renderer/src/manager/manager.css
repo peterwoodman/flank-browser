@@ -44,7 +44,9 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
-  background: var(--bg-panel);
+  /* The space's color scheme, as a flat tint rather than the full wash: at tile
+     size a gradient reads as noise, and the hue is the point. */
+  background: color-mix(in srgb, var(--wash-accent) 12%, var(--bg-panel));
   border: 1px solid var(--border);
   transition:
     background-color var(--dur-state) linear,
@@ -52,7 +54,7 @@
 }
 
 .space-tile:hover {
-  background: var(--bg-hover);
+  background: color-mix(in srgb, var(--wash-accent) 22%, var(--bg-panel));
 }
 
 /* Pressed tiles compress slightly, like GridView items. */
@@ -128,6 +130,43 @@
 .space-tile-new {
   border-style: dashed;
   background: transparent;
+}
+
+.space-tile-new:hover {
+  background: var(--bg-hover);
+}
+
+/* --- Edit space dialog --- */
+
+.edit-space-color {
+  margin-top: 16px;
+}
+
+.wash-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Each swatch is the wash itself over the theme base, so it previews the
+   window it produces rather than showing a bare accent chip. */
+.wash-swatch {
+  width: 46px;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background-color: var(--bg);
+  background-image: var(--wash);
+  transition: transform var(--dur-state) linear;
+}
+
+.wash-swatch:hover {
+  transform: scale(1.06);
+}
+
+.wash-swatch.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 /* --- Settings page --- */

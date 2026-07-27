@@ -91,6 +91,7 @@ Design rules:
       "name": "Research",
       "order": 0,
       "splitRatio": 0.5,
+      "colorScheme": "azure",
       "window": { "x": 120, "y": 80, "width": 1600, "height": 900, "maximized": false },
       "links": [
         {
@@ -114,6 +115,9 @@ Design rules:
   used as the launch splash canvas; empty means a theme-neutral splash. It's
   captured from the web app manifest when a link is pinned and refreshed
   whenever the link's app loads.
+- `colorScheme` is the id of the space's backdrop color scheme (see `ui.md` →
+  Backdrop). An unknown id, and a space saved before the setting existed, fall
+  back to the default and are rewritten on the next save.
 - `splitRatio` and `window` are remembered layout state. They live here
   rather than in the session file because they describe the space's
   shape, not its browsing state.

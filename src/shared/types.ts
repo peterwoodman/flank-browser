@@ -56,6 +56,8 @@ export interface Space {
   name: string;
   order: number;
   splitRatio: number;
+  /** Id of the backdrop color scheme (see color-schemes.ts). */
+  colorScheme: string;
   window?: WindowPlacement;
   links: SpaceLink[];
 }

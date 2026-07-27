@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import type { SpaceSummary } from '@shared/ipc-types';
 import { invoke } from '../ipc';
+import { washVars } from '../wash';
 import { ContextMenu, MenuItem } from '../components/ContextMenu';
 import { NamePrompt, Confirm } from '../components/Modal';
+import { EditSpaceDialog } from './EditSpaceDialog';
 
 type Dialog =
   | { kind: 'new' }
-  | { kind: 'rename'; space: SpaceSummary }
+  | { kind: 'edit'; space: SpaceSummary }
   | { kind: 'delete'; space: SpaceSummary }
   | null;
 
@@ -27,7 +29,7 @@ export function SpaceGrid({
 
   const menuItems = (space: SpaceSummary, index: number): MenuItem[] => [
     { label: 'Open', onClick: () => openSpace(space.id) },
-    { label: 'Rename', onClick: () => setDialog({ kind: 'rename', space }) },
+    { label: 'Edit space', onClick: () => setDialog({ kind: 'edit', space }) },
     { label: 'Delete', danger: true, onClick: () => setDialog({ kind: 'delete', space }) },
     {
       label: 'Move up',
@@ -47,6 +49,9 @@ export function SpaceGrid({
         <button
           key={space.id}
           className="space-tile"
+          // The tile wears its space's color, so the grid reads as the set of
+          // spaces rather than a wall of identical panels.
+          style={washVars(space.colorScheme)}
           onClick={() => openSpace(space.id)}
           onContextMenu={(e) => {
             e.preventDefault();
@@ -100,14 +105,13 @@ export function SpaceGrid({
           onCancel={() => setDialog(null)}
         />
       )}
-      {dialog?.kind === 'rename' && (
-        <NamePrompt
-          title="Rename space"
-          initial={dialog.space.name}
-          submitLabel="Rename"
-          onSubmit={(name) => {
+      {dialog?.kind === 'edit' && (
+        <EditSpaceDialog
+          name={dialog.space.name}
+          colorScheme={dialog.space.colorScheme}
+          onSubmit={(name, colorScheme) => {
             setDialog(null);
-            void invoke('spaces:rename', dialog.space.id, name).then(onChanged);
+            void invoke('spaces:update', dialog.space.id, { name, colorScheme }).then(onChanged);
           }}
           onCancel={() => setDialog(null)}
         />

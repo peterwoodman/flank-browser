@@ -61,6 +61,8 @@ export interface ExtensionButtonDto {
 export interface SpaceStateDto {
   spaceId: string;
   name: string;
+  /** Backdrop scheme id; the chrome mixes the wash from it (docs/ui.md). */
+  colorScheme: string;
   links: SpaceLink[];
   splitRatio: number;
   rightOpen: boolean;

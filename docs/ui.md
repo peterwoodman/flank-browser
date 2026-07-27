@@ -33,6 +33,14 @@ covers the title bar only while the left section is home — with a page there,
 the title bar wears that page's adaptive color — and a section showing a page
 has no wash of its own.
 
+Color scheme: each space picks the accent its wash is mixed from, from a fixed
+palette — Azure (the default), Lagoon, Fern, Amber, Ember, Rose, Iris,
+Graphite — so its windows are recognizable at a glance. A scheme is only that
+accent: light and dark variants of one hue, since the base, the glow, and the
+strength of the veil still follow the OS theme. Nothing else in the chrome is
+recolored; buttons, selection, and focus keep the theme accent. The Manager
+window is not a space and keeps the theme accent for its own wash.
+
 Motion: chrome surfaces use Fluent-style motion. Flyouts, menus, and
 dropdowns enter with a short fade + slide from their anchor (~190 ms,
 decelerating); dialogs and their dimmed backdrop fade in with a slight
@@ -72,11 +80,19 @@ than like a settings page. It remembers its own size/position. Default size
 - **Space grid** (the main view) — one tile (132×132) per space
   showing a montage of up to four home-link favicons (falling back to the
   space's initial letter), the name, and a green dot when its window is
-  open (refreshed whenever the Manager regains focus). Click a tile to
-  open/focus the space. Right-click for Open / Rename / Delete / Move up
+  open (refreshed whenever the Manager regains focus). Each tile is tinted with
+  its space's color scheme — flat rather than the full wash, which reads as
+  noise at tile size. Click a tile to
+  open/focus the space. Right-click for Open / Edit space / Delete / Move up
   / Move down — Delete asks for confirmation, removes the space's session
   file and its entry everywhere, and never touches shared browser data. A
-  trailing "＋ New space" tile creates one (name prompt).
+  trailing "＋ New space" tile creates one (name prompt), with the default
+  color scheme.
+  - **Edit space** opens a dialog holding the space's name and its color
+    scheme: one swatch per scheme in the palette, each painted with the wash it
+    produces over the current theme rather than as a bare color chip. Saving
+    applies both at once, and an open window for that space repaints
+    immediately — wash and caption buttons — with no restart.
 - **Settings** — behind the gear button in the title bar (the gear becomes a
   back arrow while open): search engine URL template, search suggestions URL
   template, launch-at-login toggle, toolbar position (side or top of each

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import { Space, SpacesFile, defaultSpacesFile } from '@shared/types';
+import { colorScheme, DEFAULT_COLOR_SCHEME } from '@shared/color-schemes';
 import { spacesFile, sessionFilePath } from '../paths';
 import { loadJson, saveJson } from './json-file';
 import { newId } from '../ids';
@@ -12,6 +13,12 @@ class SpacesStore {
   load(): void {
     this.file = loadJson(spacesFile, defaultSpacesFile);
     this.file.spaces.sort((a, b) => a.order - b.order);
+    // JsonFile only fills defaults at the top level, so spaces written before
+    // color schemes existed (or hand-edited to a name that isn't one) need
+    // normalizing here — everything downstream indexes the palette directly.
+    for (const space of this.file.spaces) {
+      space.colorScheme = colorScheme(space.colorScheme).id;
+    }
   }
 
   save(): void {
@@ -42,6 +49,7 @@ class SpacesStore {
       name,
       order: this.file.spaces.length,
       splitRatio: 0.5,
+      colorScheme: DEFAULT_COLOR_SCHEME,
       links: []
     };
     this.file.spaces.push(space);
@@ -49,10 +57,12 @@ class SpacesStore {
     return space;
   }
 
-  rename(id: string, name: string): void {
+  /** The fields the Manager's space settings dialog edits; absent = unchanged. */
+  update(id: string, patch: { name?: string; colorScheme?: string }): void {
     const space = this.byId(id);
     if (!space) return;
-    space.name = name;
+    if (patch.name) space.name = patch.name;
+    if (patch.colorScheme) space.colorScheme = colorScheme(patch.colorScheme).id;
     this.save();
   }
 
