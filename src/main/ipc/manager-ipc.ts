@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow } from 'electron';
+import { app, ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
 import { AppSettings } from '@shared/types';
@@ -8,6 +8,7 @@ import { spacesStore } from '../stores/spaces-store';
 import { newId } from '../ids';
 import { iconUrl } from '../icons-protocol';
 import { parseExtensionManifest } from '../extension-manifest';
+import { isValidTemplate } from '../navigation-input';
 import { importExtensions, scanBrowsers } from '../browser-import';
 import { applyLaunchAtLogin } from '../launch-at-login';
 import { dataDir } from '../paths';
@@ -33,7 +34,9 @@ function spaceSummaries(): SpaceSummary[] {
 
 export function registerManagerIpc(): void {
   ipcMain.handle('flank:manager:getState', (): ManagerState => {
-    return { spaces: spaceSummaries(), settings: settingsStore.current };
+    // getVersion() reads the version out of package.json (the generated one in
+    // a packaged build), so the footer needs no build step to stay current.
+    return { spaces: spaceSummaries(), settings: settingsStore.current, version: app.getVersion() };
   });
 
   ipcMain.handle('flank:spaces:create', (_e, name: string) => {
@@ -71,8 +74,16 @@ export function registerManagerIpc(): void {
     const before = settingsStore.current.launchAtLogin;
     const toolbarBefore = settingsStore.current.toolbarPosition;
     settingsStore.update((s) => {
-      if (typeof patch.searchTemplate === 'string') s.searchTemplate = patch.searchTemplate;
-      if (typeof patch.suggestTemplate === 'string') s.suggestTemplate = patch.suggestTemplate;
+      // Both templates are navigated to or fetched with the user's typed text in
+      // them, so an unusable one is refused rather than stored (the Manager's
+      // field reverts to the kept value). Empty clears remote suggestions.
+      if (typeof patch.searchTemplate === 'string' && isValidTemplate(patch.searchTemplate)) {
+        s.searchTemplate = patch.searchTemplate.trim();
+      }
+      if (typeof patch.suggestTemplate === 'string') {
+        const suggest = patch.suggestTemplate.trim();
+        if (suggest === '' || isValidTemplate(suggest)) s.suggestTemplate = suggest;
+      }
       if (typeof patch.launchAtLogin === 'boolean') s.launchAtLogin = patch.launchAtLogin;
       if (patch.toolbarPosition === 'side' || patch.toolbarPosition === 'top') {
         s.toolbarPosition = patch.toolbarPosition;

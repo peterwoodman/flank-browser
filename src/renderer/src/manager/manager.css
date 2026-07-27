@@ -13,6 +13,19 @@
   padding: 16px 20px;
 }
 
+/* A row of its own rather than an overlay, so it never sits on the content or
+   the scrollbar of a full grid. Selectable against the chrome-wide rule, so the
+   version can be copied into a bug report. */
+.manager-version {
+  flex: none;
+  padding: 0 14px 7px;
+  text-align: right;
+  font-size: 11px;
+  color: var(--fg-muted);
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 /* --- Space grid --- */
 
 /* Page switches (grid <-> settings) enter like a Frame navigation. */

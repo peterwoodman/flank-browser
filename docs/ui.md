@@ -89,7 +89,9 @@ There is no system tray or background residency; windows are the only UI.
 A single window (at most one instance) that doubles as the app's launcher, so
 it is styled like the space windows (same title bar treatment) rather
 than like a settings page. It remembers its own size/position. Default size
-660×560.
+660×560. The app version sits in small muted print in the bottom-right corner
+of the window, below whichever view is showing — the one place a build
+identifies itself, since there is no About dialog.
 
 - **Space grid** (the main view) — one tile (132×132) per space
   showing a montage of up to four home-link favicons (falling back to the

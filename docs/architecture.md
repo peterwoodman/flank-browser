@@ -134,7 +134,7 @@ main process
 | Behavior | Electron mechanism |
 |---|---|
 | Navigation routing (leave the pinned page → right section) | `will-navigate` `preventDefault()` + a programmatic-navigation flag, since the event carries no user-gesture flag |
-| New tabs and popups | `setWindowOpenHandler`: `deny` + route per `behaviors.md`, or `allow` for sized popups (`disposition: 'new-window'`) |
+| New tabs and popups | `setWindowOpenHandler`: `deny` + route per `behaviors.md`, or `allow` for sized popups (`disposition: 'new-window'`) whose target is `http(s)` or blank — a window the host opens is a host navigation, so the engine's own scheme block does not apply to it |
 | Page instrumentation (shift+click, gestures, colors) | the content-view preload |
 | Extensions | `session.extensions.loadExtension` + `electron-chrome-extensions` |
 | Single instance and activation | `requestSingleInstanceLock` + `second-instance` |
@@ -199,6 +199,11 @@ Flank implements them.
 - **Permission prompts** — Electron allows by default, so
   `setPermissionRequestHandler` drives a serialized allow/block dialog with
   per-origin persistence in `settings.json` (the engine has none).
+  `setPermissionCheckHandler` answers the silent checks most web APIs make
+  before they request, from the same policy and the same stored answers: it is a
+  separate default-allow path, and without it `permissions.query` and
+  `Notification.permission` would contradict the dialog. A check cannot prompt,
+  so undecided answers `false` and the request handler takes over.
 - **Screen sharing** — Electron has no picker, and with no handler installed
   every `getDisplayMedia` call simply fails, which sites report as a generic
   "something went wrong". `setDisplayMediaRequestHandler` plus

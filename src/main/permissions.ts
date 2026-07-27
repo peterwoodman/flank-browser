@@ -9,6 +9,12 @@ import { log } from './log';
  * are remembered per origin+permission in settings (the engine itself has no
  * persistence), and dialogs are serialized so overlapping requests can't
  * stack.
+ *
+ * Requests are only half of it. Most web APIs check the permission first and
+ * only request when the check says no, and checks are a separate handler the
+ * engine also answers "allow" to by default — so both are installed here, from
+ * the same policy, or a page could read a capability as granted that Flank
+ * never granted.
  */
 
 /** Permissions that get an explicit prompt; the rest resolve silently. */
@@ -28,14 +34,17 @@ const PROMPTED = new Set([
  * Harmless engine plumbing that would be noise as a dialog. `display-capture`
  * belongs here because the screen-share picker (`screen-share.ts`) is that
  * request's real consent step; `screen-wake-lock` is what a video call uses to
- * keep the display on while nobody touches the keyboard.
+ * keep the display on while nobody touches the keyboard; `mediaKeySystem` is
+ * the DRM handshake protected video needs before it will play at all, and a
+ * dialog about it would mean nothing to the person answering it.
  */
 const SILENTLY_ALLOWED = new Set([
   'fullscreen',
   'persistent-storage',
   'background-sync',
   'display-capture',
-  'screen-wake-lock'
+  'screen-wake-lock',
+  'mediaKeySystem'
 ]);
 
 export interface PermissionPrompt {
@@ -50,6 +59,8 @@ type PromptFn = (contents: WebContents, prompt: PermissionPrompt) => Promise<boo
 let queue: Promise<void> = Promise.resolve();
 
 export function installPermissionHandler(promptFn: PromptFn): void {
+  installCheckHandler();
+
   flankSession().setPermissionRequestHandler((contents, permission, callback, details) => {
     const origin = originOf(details.requestingUrl);
 
@@ -93,6 +104,25 @@ export function installPermissionHandler(promptFn: PromptFn): void {
       });
       callback(allowed);
     });
+  });
+}
+
+/**
+ * Answers the engine's silent permission checks (`navigator.permissions.query`,
+ * `Notification.permission`, device-label access) from the same policy the
+ * dialog uses. A check cannot show a dialog, so anything not yet decided
+ * answers no and the request handler prompts when the page actually asks for
+ * it — which is the sequence those APIs already follow.
+ */
+function installCheckHandler(): void {
+  flankSession().setPermissionCheckHandler((_contents, permission, requestingOrigin, details) => {
+    if (SILENTLY_ALLOWED.has(permission)) return true;
+    const origin =
+      originOf(requestingOrigin) ||
+      originOf(details.requestingUrl ?? '') ||
+      originOf(details.securityOrigin ?? '');
+    if (!PROMPTED.has(permission) || !origin) return false;
+    return settingsStore.current.permissions?.[origin]?.[permission] === true;
   });
 }
 

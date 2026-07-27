@@ -3,6 +3,7 @@ import { TrailEntry, TRAIL_CAP } from '@shared/types';
 import { PageColors, SplashDto } from '@shared/space-types';
 import { flankSession } from './browser-session';
 import { contentPreloadPath } from './renderer-url';
+import { isPopupTarget, isWebUrl } from './navigation-input';
 import { readManifest } from './manifest-info';
 import { captureBestFavicon } from './favicons';
 import { log, logError, fireAndForget } from './log';
@@ -10,13 +11,25 @@ import { log, logError, fireAndForget } from './log';
 const FORM_SUBMIT_WINDOW_MS = 3000;
 const GESTURE_WINDOW_MS = 2500;
 const LOADING_WATCHDOG_MS = 20000;
+/** Longest content-preload message accepted; the biggest legitimate one is a URL. */
+const MAX_CONTENT_MESSAGE = 8192;
 
 const viewsByWebContentsId = new Map<number, ContentView>();
 
-/** Routes content-preload messages to the owning view. Register once. */
+/**
+ * Routes content-preload messages to the owning view. Register once.
+ *
+ * A page cannot post here itself — the content preload keeps `ipcRenderer` to
+ * itself — but the renderer it runs in is the process exposed to hostile pages,
+ * so what arrives is treated as untrusted: bounded here, and re-checked in
+ * `onContentMessage` rather than trusted for having come from Flank's own
+ * preload.
+ */
 export function registerContentMessageRouting(): void {
   ipcMain.on('flank:content', (event, message: string) => {
-    viewsByWebContentsId.get(event.sender.id)?.onContentMessage(String(message));
+    const text = String(message);
+    if (text.length > MAX_CONTENT_MESSAGE) return;
+    viewsByWebContentsId.get(event.sender.id)?.onContentMessage(text);
   });
 }
 
@@ -87,8 +100,10 @@ export class ContentView {
     // link intact. Denying one returns null to the page, which auth libraries
     // read as "a popup blocker ate it" and abandon the sign-in.
     wc.setWindowOpenHandler((details) => {
-      if (details.disposition === 'new-window') return { action: 'allow' };
-      if (/^https?:/i.test(details.url)) this.onNewWindow(details.url);
+      if (details.disposition === 'new-window') {
+        return isPopupTarget(details.url) ? { action: 'allow' } : { action: 'deny' };
+      }
+      if (isWebUrl(details.url)) this.onNewWindow(details.url);
       return { action: 'deny' };
     });
     wc.on('did-create-window', (popup) => this.onPopupCreated(popup));
@@ -352,7 +367,10 @@ export class ContentView {
   /** Messages from the content preload (see src/preload/content.ts). */
   onContentMessage(message: string): void {
     if (message.startsWith('shiftnav:')) {
-      this.onFlipNavigation(message.slice('shiftnav:'.length));
+      const url = message.slice('shiftnav:'.length);
+      // The preload only posts anchors it has already checked; re-checking here
+      // keeps the scheme decision in the host, where it cannot be skipped.
+      if (isWebUrl(url)) this.onFlipNavigation(url);
       return;
     }
     if (message.startsWith('colors:')) {

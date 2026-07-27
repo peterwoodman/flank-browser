@@ -22,6 +22,8 @@ import type { ContentView } from './content-view';
  */
 
 const FETCH_TIMEOUT_MS = 10_000;
+/** Generous for a favicon, and small enough that a hostile server cannot stream us dry. */
+const MAX_IMAGE_BYTES = 512 * 1024;
 const attemptedKeys = new Set<string>();
 
 /**
@@ -54,16 +56,89 @@ export function storeIcon(link: SpaceLink, image: Buffer): boolean {
 /**
  * Downloads an image, or returns null if the fetch fails or the response
  * isn't a raster image (SPAs answer arbitrary paths with their HTML).
+ *
+ * Most of these URLs are the page's own suggestions, and this fetch runs in the
+ * host process: outside the page's sandbox, outside CORS, and on every network
+ * the machine can reach. So only `http(s)` is fetched, and a loopback or
+ * private-network target is refused unless the page asking for it lives on that
+ * host itself — otherwise any site could use a home tile to probe what is
+ * listening behind the machine. Pass `localHost` (the page's or link's own
+ * hostname) to permit that case, which is how a LAN service keeps its icon.
  */
-export async function tryDownloadImage(url: string): Promise<Buffer | null> {
+export async function tryDownloadImage(url: string, localHost?: string): Promise<Buffer | null> {
+  const target = fetchableImageUrl(url, localHost);
+  if (!target) return null;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+    const response = await fetch(target, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
     if (!response.ok) return null;
-    const bytes = Buffer.from(await response.arrayBuffer());
-    return looksLikeImage(bytes) ? bytes : null;
+    const bytes = await readCapped(response);
+    return bytes && looksLikeImage(bytes) ? bytes : null;
   } catch {
     return null;
   }
+}
+
+/** The URL to fetch, or null if policy refuses it. */
+function fetchableImageUrl(url: string, localHost?: string): string | null {
+  let uri: URL;
+  try {
+    uri = new URL(url);
+  } catch {
+    return null;
+  }
+  if (uri.protocol !== 'http:' && uri.protocol !== 'https:') return null;
+  if (isLocalAddress(uri.hostname) && !sameHostname(uri.hostname, localHost)) return null;
+  return uri.toString();
+}
+
+/** Loopback, link-local, private ranges, and bare intranet names. */
+function isLocalAddress(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, '');
+  if (host === 'localhost' || host.endsWith('.localhost')) return true;
+  if (host.includes(':')) {
+    // IPv6 literal: loopback, unique-local (fc00::/7), link-local (fe80::/10).
+    return host === '::1' || /^f[cd]/.test(host) || host.startsWith('fe80:');
+  }
+  const octets = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.\d{1,3}$/.exec(host);
+  if (octets) {
+    const a = Number(octets[1]);
+    const b = Number(octets[2]);
+    return (
+      a === 0 ||
+      a === 127 ||
+      a === 10 ||
+      (a === 192 && b === 168) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 169 && b === 254)
+    );
+  }
+  return !host.includes('.'); // "nas", "router" — resolvable only on the local network
+}
+
+function sameHostname(host: string, other?: string): boolean {
+  return !!other && host.toLowerCase() === other.toLowerCase();
+}
+
+/** Reads the body, giving up rather than buffering past the cap. */
+async function readCapped(response: Response): Promise<Buffer | null> {
+  const declared = Number(response.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > MAX_IMAGE_BYTES) return null;
+  if (!response.body) return null;
+
+  const reader = response.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_IMAGE_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
 }
 
 /** Fallback fetch for links without a live-captured icon. Returns true if the link was updated. */
@@ -76,6 +151,7 @@ export async function ensureIcon(link: SpaceLink): Promise<boolean> {
   } catch {
     return false;
   }
+  if (uri.protocol !== 'http:' && uri.protocol !== 'https:') return false;
 
   // Authority, not host: LAN services on the same host differ by port.
   const key = uri.host.replace(':', '_');
@@ -92,14 +168,15 @@ export async function ensureIcon(link: SpaceLink): Promise<boolean> {
 
   // The site's own /favicon.ico first (works for LAN services and is at
   // least as specific as any icon service), then DuckDuckGo (covers sites
-  // that declare icons only via <link> tags).
-  const sources = [
-    `${uri.protocol}//${uri.host}/favicon.ico`,
-    `https://icons.duckduckgo.com/ip3/${uri.hostname}.ico`
+  // that declare icons only via <link> tags). The link is the user's own, so
+  // its host is allowed even on the local network; the icon service is public.
+  const sources: [url: string, localHost?: string][] = [
+    [`${uri.protocol}//${uri.host}/favicon.ico`, uri.hostname],
+    [`https://icons.duckduckgo.com/ip3/${encodeURIComponent(uri.hostname)}.ico`]
   ];
 
-  for (const source of sources) {
-    const bytes = await tryDownloadImage(source);
+  for (const [source, localHost] of sources) {
+    const bytes = await tryDownloadImage(source, localHost);
     if (!bytes) continue;
 
     try {
@@ -143,9 +220,13 @@ export async function captureBestFavicon(
   view: ContentView,
   manifestIconUrls?: string[]
 ): Promise<Buffer | null> {
+  // Everything below is a URL the page chose, so a local-network target is only
+  // fetched when the page itself is on that host (a self-hosted app's own icon).
+  const pageHost = hostnameOf(view.currentUrl());
+
   const manifestIcons = manifestIconUrls ?? (await readManifest(view.webContents)).iconUrls;
   for (const href of manifestIcons) {
-    const bytes = await tryDownloadImage(href);
+    const bytes = await tryDownloadImage(href, pageHost);
     if (bytes) return bytes;
   }
 
@@ -158,7 +239,7 @@ export async function captureBestFavicon(
       .sort((a, b) => declaredIconSize(b.rel, b.sizes) - declaredIconSize(a.rel, a.sizes));
 
     for (const candidate of candidates) {
-      const bytes = await tryDownloadImage(candidate.href);
+      const bytes = await tryDownloadImage(candidate.href, pageHost);
       if (bytes) return bytes;
     }
   } catch (err) {
@@ -166,11 +247,19 @@ export async function captureBestFavicon(
   }
 
   for (const href of view.latestFaviconUrls) {
-    const bytes = await tryDownloadImage(href);
+    const bytes = await tryDownloadImage(href, pageHost);
     if (bytes) return bytes;
   }
 
   return null;
+}
+
+function hostnameOf(url: string): string | undefined {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Pixel size a link tag promises ("32x32", possibly several, "any" for SVG). */

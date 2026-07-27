@@ -16,6 +16,7 @@ import { settingsStore } from './stores/settings-store';
 import { loadSession, saveSession } from './stores/session-store';
 import { applyRestoredPosition, capturePlacement, windowOptionsFrom } from './placement';
 import { chromePreloadPath, loadChromeRoute } from './renderer-url';
+import { isPopupTarget, isWebUrl } from './navigation-input';
 import { titleBarOverlayColors, windowIcon } from './manager-window';
 import { readManifest } from './manifest-info';
 import { newId } from './ids';
@@ -312,8 +313,10 @@ export class SpaceWindowController {
     // Links out of the popup follow Flank's routing; nested popups (some
     // providers chain them) stay popups.
     wc.setWindowOpenHandler((details) => {
-      if (details.disposition === 'new-window') return { action: 'allow' };
-      if (/^https?:/i.test(details.url)) this.openInRight(details.url);
+      if (details.disposition === 'new-window') {
+        return isPopupTarget(details.url) ? { action: 'allow' } : { action: 'deny' };
+      }
+      if (isWebUrl(details.url)) this.openInRight(details.url);
       return { action: 'deny' };
     });
     wc.on('did-create-window', (nested) => this.adoptPopup(nested));

@@ -41,6 +41,7 @@ export function ManagerApp(): React.JSX.Element {
           <SpaceGrid spaces={state.spaces} onChanged={refresh} />
         )}
       </main>
+      <footer className="manager-version">{state === null ? '' : `v${state.version}`}</footer>
     </div>
   );
 }

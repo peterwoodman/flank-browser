@@ -1,6 +1,7 @@
 import { SpaceLink, TrailEntry } from '@shared/types';
 import { SuggestionDto } from '@shared/space-types';
 import { settingsStore } from './stores/settings-store';
+import { isValidTemplate } from './navigation-input';
 
 const MAX_LOCAL = 3;
 const MAX_TOTAL = 8;
@@ -77,8 +78,10 @@ export async function buildSuggestions(
  * - DuckDuckGo:  [{"phrase":"…"},…]
  */
 async function fetchEngineSuggestions(boxKey: string, query: string, max: number): Promise<string[]> {
+  // Validated on the way in too; a hand-edited settings.json must not point this
+  // fetch — which runs in the host process — at something that isn't a web URL.
   const template = settingsStore.current.suggestTemplate;
-  if (!template || !template.includes('{query}') || !query.trim() || max <= 0) return [];
+  if (!isValidTemplate(template) || !query.trim() || max <= 0) return [];
 
   inflight.get(boxKey)?.abort();
   const controller = new AbortController();

@@ -42,12 +42,13 @@ Design rules:
 ```json
 {
   "version": 1,
-  "searchTemplate": "https://www.qwant.com/?q={query}",
+  "searchTemplate": "https://www.ecosia.org/search?method=index&q={query}",
   "suggestTemplate": "https://api.qwant.com/v3/suggest?q={query}&version=2",
   "launchAtLogin": false,
   "toolbarPosition": "side",
   "backgroundTabMinutes": 30,
   "openSpaces": ["8b1c…"],
+  "permissions": { "https://meet.example.com": { "media": true, "notifications": false } },
   "managerWindow": { "x": 640, "y": 320, "width": 660, "height": 560, "maximized": false },
   "extensions": [
     {
@@ -62,8 +63,12 @@ Design rules:
 ```
 
 - `searchTemplate` — `{query}` is replaced with the URL-encoded search text.
-- `suggestTemplate` — autocomplete endpoint for the search/address boxes;
-  empty disables remote suggestions (see `behaviors.md` → Search suggestions).
+  Must be an `http(s)` URL containing `{query}`; anything else is refused on
+  entry and ignored in favor of the default if it reached the file another way
+  (see `behaviors.md` → Search engine).
+- `suggestTemplate` — autocomplete endpoint for the search/address boxes, held
+  to the same rule; empty disables remote suggestions (see `behaviors.md` →
+  Search suggestions).
 - `toolbarPosition` — `"side"` (default) or `"top"`: where every section's
   toolbar sits (see `ui.md` → Web view). Anything else falls back to `"side"`.
 - `backgroundTabMinutes` — idle time before a backgrounded left tab is
@@ -75,6 +80,11 @@ Design rules:
 - `managerWindow` — the Manager window's last bounds (spaces keep theirs
   in `spaces.json`). Never captured while it is minimized behind a space
   window, so being tucked away does not overwrite where it sits.
+- `permissions` — remembered allow/deny answers, keyed by origin then permission
+  name, written the first time a prompt is answered. The engine keeps no such
+  memory, and these answers also settle the silent checks web APIs make before
+  asking (see `behaviors.md` → Media, permissions, and dialogs). Deleting an
+  origin's entry makes it ask again.
 - `extensions[].path` — folder containing an unpacked Chromium extension.
   Extensions added by folder are referenced where they sit; imported ones
   point into `extensions/{extensionId}/` in the data folder.

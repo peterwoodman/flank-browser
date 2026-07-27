@@ -14,6 +14,8 @@ export interface SpaceSummary {
 export interface ManagerState {
   spaces: SpaceSummary[];
   settings: AppSettings;
+  /** App version, for the Manager's footer; comes from `package.json`. */
+  version: string;
 }
 
 /** One extension found in another Chromium browser, offered for import. */

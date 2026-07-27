@@ -20,7 +20,7 @@ links land in the other.
 | SPA route changes, `#fragment` / pushState, reloads, redirects, back/forward, form submissions, and script-initiated navigations (redirect bounces, SSO hops) | Stay in place — these are the launched page doing its own thing, not leaving it. |
 | In-page link in the **right** web view | Navigates the right view in place. The right view is the free-browsing pane. |
 | Page requests a new tab (`target=_blank`, plain `window.open`) | From the left view: opens in the **right** section. From the right view: navigates the right view in place. No OS window is created. |
-| Page requests a sized popup (`window.open` with window features — sign-in, consent, and payment flows) | Opens as a real popup window belonging to the space window, titled with the page's origin since a popup has no address bar. Links out of it follow the rules above. |
+| Page requests a sized popup (`window.open` with window features — sign-in, consent, and payment flows) | Opens as a real popup window belonging to the space window, titled with the page's origin since a popup has no address bar. Only `http(s)` targets and blank ones qualify; anything else is refused. Links out of it follow the rules above. |
 | **Shift+click** on an in-page link | Flips the target section — the link opens on the **left** either way: from the left view it navigates the left view in place (instead of routing right); from the right view it opens in the left view (the right section stays open, unlike "Move page to left"). |
 | Trail entry clicked, Home/toolbar actions | Explicit Flank UI actions always act on their own view in place. |
 
@@ -38,7 +38,12 @@ Popup requests are the one case that becomes a real window, because sign-in
 flows need a live opener: the provider hands the credential back through
 `window.opener` (or a channel keyed to it), and a page whose `window.open`
 returns nothing is read by auth libraries as a blocked popup, abandoning the
-sign-in. Tab-style requests carry no such requirement and stay in-app.
+sign-in. Tab-style requests carry no such requirement and stay in-app. A blank
+target counts as a popup because that is how those flows start — the page opens
+an empty window and writes into it through the opener — but the scheme is
+checked before any window is created: the engine stops a page from navigating
+*itself* to `file:`, while a window the host opens on the page's behalf is a
+host navigation that would skip the check.
 
 Telling a user's navigation from a script's is the crux of the rules above,
 and the engine does not say which is which: `will-navigate` carries no
@@ -153,8 +158,15 @@ The trail replaces conventional back/forward UI and browser history.
 ## Search engine
 
 Defined in settings as a URL template with a `{query}` placeholder. Default
-is Qwant (`https://www.qwant.com/?q={query}`). Used by the home view search
-box and the sections' address bars.
+is Ecosia (`https://www.ecosia.org/search?method=index&q={query}`). Used by the
+home view search box and the sections' address bars.
+
+A template only counts as usable if it is an `http(s)` URL containing `{query}`
+— the typed text ends up in a navigation, so a `file:` template would turn the
+search box into a local file reader. Plain `http:` stays allowed for engines
+self-hosted on a LAN. An unusable template is refused on entry (the Manager's
+field reverts to the kept value), and one that reached settings another way
+falls back to the default.
 
 ## Search suggestions
 
@@ -170,9 +182,10 @@ Both free-form entry points show an autocomplete dropdown while typing:
   `api.qwant.com/v3/suggest`). Requests are debounced (~200 ms), the newest
   query cancels in-flight ones, and the list caps at 8 rows total.
 - The suggest endpoint is configured separately from the search template
-  (suggest URLs cannot be derived from search URLs). Three response formats
-  are recognized: Qwant v3 (`data.items[].value`), OpenSearch arrays
-  (Google, Wikipedia), and DuckDuckGo (`[{phrase}]`).
+  (suggest URLs cannot be derived from search URLs), and is held to the same
+  `http(s)`-with-`{query}` rule. Three response formats are recognized: Qwant v3
+  (`data.items[].value`), OpenSearch arrays (Google, Wikipedia), and DuckDuckGo
+  (`[{phrase}]`).
 - Privacy: typed text is sent to the suggest endpoint as you type. Clearing
   the template in settings disables remote suggestions; local matches
   remain.
@@ -198,6 +211,11 @@ Both free-form entry points show an autocomplete dropdown while typing:
   `/favicon.ico` (host:port-specific, so LAN services on different ports get
   distinct icons; non-image responses rejected), then a domain-level icon
   service (DuckDuckGo's). Failed sources are attempted once per app run.
+- Icon fetches are made by the app rather than the page, so they answer to the
+  app's rules rather than the page's: `http(s)` only, capped at 512 KB, and a
+  loopback or private-network address is only fetched when the page (or link)
+  asking for it lives on that host itself. A self-hosted app keeps its own icon;
+  a public site cannot use a tile to probe what is listening on the machine.
 - See `data-model.md` for cache layout.
 
 ## Extensions
@@ -261,8 +279,18 @@ download UI. No custom download manager.
 
 - Permission prompts (camera, mic, location, notifications, clipboard,
   sensors, autoplay) surface through a simple allow/deny dialog naming the
-  requesting host; the choice is remembered per origin (stored by the
-  browser profile). Prompts are serialized — one dialog at a time.
+  requesting host; the choice is remembered per origin in settings, since the
+  engine keeps no such memory of its own. Prompts are serialized — one dialog at
+  a time.
+- Web APIs generally test a permission silently before asking for it, and that
+  test is answered from the same remembered decisions: undecided reads as no, so
+  the page goes on to ask and the dialog appears. This is what keeps
+  `navigator.permissions.query` and `Notification.permission` from reporting a
+  capability as granted that was never granted, or that was refused.
+- Permissions Flank has no dialog for are refused rather than granted quietly.
+  The exceptions are engine plumbing a dialog could not sensibly describe:
+  fullscreen, storage persistence, background sync, wake lock, and the DRM
+  handshake protected video needs before it will play.
 - Screen sharing (a page calling `getDisplayMedia`, e.g. presenting in a
   video call) opens a picker of the screens and open windows, each with a
   preview; the page receives the one source chosen and nothing else. The
