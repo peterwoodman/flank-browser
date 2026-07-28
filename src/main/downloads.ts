@@ -1,5 +1,5 @@
 import { WebContents } from 'electron';
-import { flankSession } from './browser-session';
+import { prepareEverySession } from './browser-session';
 import { newId } from './ids';
 import { log } from './log';
 
@@ -18,14 +18,16 @@ type NotifyFn = (contents: WebContents, notice: DownloadNotice) => void;
  * There is deliberately no download manager.
  */
 export function installDownloadHandler(notify: NotifyFn): void {
-  flankSession().on('will-download', (_event, item, contents) => {
-    const id = newId();
-    const filename = item.getFilename();
-    notify(contents, { id, filename, state: 'started' });
+  prepareEverySession((ses) => {
+    ses.on('will-download', (_event, item, contents) => {
+      const id = newId();
+      const filename = item.getFilename();
+      notify(contents, { id, filename, state: 'started' });
 
-    item.once('done', (_e, state) => {
-      log(`download ${state}: ${filename}`);
-      notify(contents, { id, filename, state: state === 'completed' ? 'completed' : 'failed' });
+      item.once('done', (_e, state) => {
+        log(`download ${state}: ${filename}`);
+        notify(contents, { id, filename, state: state === 'completed' ? 'completed' : 'failed' });
+      });
     });
   });
 }

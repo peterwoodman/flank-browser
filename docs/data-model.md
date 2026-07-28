@@ -9,7 +9,7 @@ instead, for demo and test profiles.
 ```
 <app data>/
 ├── settings.json          – app-wide settings and app-level state
-├── spaces.json        – space definitions and home grids
+├── spaces.json        – profiles, space definitions, and home grids
 ├── sessions/
 │   └── {spaceId}.json – per-space session state and trails
 ├── icons/                 – cached favicons for home grid tiles
@@ -23,8 +23,11 @@ instead, for demo and test profiles.
 │                            on the first import. Extensions added by folder
 │                            stay where they are and are not copied here.
 ├── debug.log              – diagnostic log (errors from fire-and-forget tasks)
-└── Cache/, Local Storage/, Network/, … – the Chromium profile shared by every
-                            space (engine-managed; Flank never reads these)
+└── Partitions/            – one Chromium profile per Flank profile, named after
+    └── flank[-{id}]/        its partition: Cache/, Local Storage/, Network/, …
+                             (engine-managed; Flank never reads these). Created
+                             when a profile's first space opens, and deleted
+                             with the profile.
 ```
 
 Design rules:
@@ -84,7 +87,11 @@ Design rules:
   name, written the first time a prompt is answered. The engine keeps no such
   memory, and these answers also settle the silent checks web APIs make before
   asking (see `behaviors.md` → Media, permissions, and dialogs). Deleting an
-  origin's entry makes it ask again.
+  origin's entry makes it ask again. App-wide rather than per profile: allowing a
+  site your camera is a decision about the site, not about which identity is
+  browsing it.
+- `extensions` — app-wide, not per profile: the same set is loaded into every
+  profile (see `behaviors.md` → Extensions).
 - `extensions[].path` — folder containing an unpacked Chromium extension.
   Extensions added by folder are referenced where they sit; imported ones
   point into `extensions/{extensionId}/` in the data folder.
@@ -96,10 +103,15 @@ Design rules:
 ```json
 {
   "version": 1,
+  "profiles": [
+    { "id": "7c4d…", "name": "Default", "order": 0, "partition": "persist:flank" },
+    { "id": "b3a1…", "name": "Work", "order": 1, "partition": "persist:flank-b3a1…" }
+  ],
   "spaces": [
     {
       "id": "a1b2…",
       "name": "Research",
+      "profileId": "7c4d…",
       "order": 0,
       "splitRatio": 0.5,
       "colorScheme": "azure",
@@ -119,6 +131,17 @@ Design rules:
 }
 ```
 
+- `profiles` are the browsing identities spaces are grouped into, in the order
+  the Manager lists them; there is always at least one. `partition` names the
+  Chromium partition holding that profile's cookies, logins, and cache — the
+  first profile keeps `persist:flank`, the partition the app used before it had
+  profiles, so gaining profiles doesn't sign anyone out. A partition that is
+  missing, malformed, or already claimed by another profile is replaced with one
+  derived from the profile's id, since two profiles sharing one would share the
+  identity that defines them.
+- `profileId` is the profile a space browses as. An unknown one (hand-edited, or
+  a space written before profiles existed) falls back to the first profile.
+  Spaces are stored grouped by profile, in profile order.
 - `links` is the home grid; `order` drives grid position (row-major).
 - `icon` is a relative path into the `icons/` cache; empty means "fetch a
   favicon on next display".
@@ -178,8 +201,9 @@ reopening restores it.
 
 ## What is deliberately not stored
 
-- **Cookies, logins, cache** — owned by the browser engine in its user data
-  folder, shared across all spaces. Flank never parses or writes these.
+- **Cookies, logins, cache** — owned by the browser engine in its partition
+  folder, one per profile and shared by that profile's spaces. Flank never
+  parses or writes these; removing a profile clears them through the engine.
 - **Global history** — there is no cross-space history; the per-view
   trail is the only history feature.
 - **Favicons for trails** — not persisted, to keep session files small.

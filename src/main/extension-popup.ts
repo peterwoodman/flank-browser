@@ -1,6 +1,5 @@
-import { BaseWindow, BrowserWindow } from 'electron';
+import { BaseWindow, BrowserWindow, Session } from 'electron';
 import { Rect } from '@shared/space-types';
-import { flankSession } from './browser-session';
 import { logError } from './log';
 
 /** Until the popup page reports its preferred size. */
@@ -33,6 +32,7 @@ export class ExtensionPopup {
 
   constructor(
     parent: BaseWindow,
+    ses: Session,
     url: string,
     anchor: Rect,
     placement: PopupPlacement,
@@ -56,7 +56,7 @@ export class ExtensionPopup {
       width: DEFAULT_WIDTH,
       height: DEFAULT_HEIGHT,
       webPreferences: {
-        session: flankSession(),
+        session: ses,
         sandbox: true,
         contextIsolation: true,
         enablePreferredSizeMode: true

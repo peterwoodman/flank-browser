@@ -1,6 +1,7 @@
 import {
   BaseWindow,
   BrowserWindow,
+  Session,
   WebContentsView,
   Menu,
   MenuItemConstructorOptions,
@@ -48,6 +49,8 @@ const AUTOSAVE_MS = 30_000;
 export class SpaceWindowController {
   readonly space: Space;
   readonly win: BaseWindow;
+  /** The profile partition every page in this window browses as. */
+  readonly session: Session;
   private readonly chromeView: WebContentsView;
   private readonly left: Section;
   private readonly right: Section;
@@ -66,8 +69,9 @@ export class SpaceWindowController {
 
   onClosed: () => void = () => {};
 
-  constructor(space: Space) {
+  constructor(space: Space, ses: Session) {
     this.space = space;
+    this.session = ses;
 
     const opts = windowOptionsFrom(space.window, { width: 1400, height: 900 });
     this.win = new BaseWindow({
@@ -102,8 +106,8 @@ export class SpaceWindowController {
     this.win.contentView.addChildView(this.chromeView);
     this.fitChromeView();
 
-    this.left = new Section(space, true);
-    this.right = new Section(space, false);
+    this.left = new Section(space, true, ses);
+    this.right = new Section(space, false, ses);
     this.wireSections();
 
     this.chromeView.webContents.once('did-finish-load', () => {
@@ -146,11 +150,6 @@ export class SpaceWindowController {
     }
   }
 
-  /**
-   * Routing (docs/behaviors.md): the left view is pinned; leaving it — by
-   * link or new-window request — lands in the right section. The right view
-   * is the free-browsing pane and navigates in place.
-   */
   private wireSections(): void {
     for (const section of [this.left, this.right]) {
       section.onViewsChanged = () => {
@@ -158,55 +157,58 @@ export class SpaceWindowController {
         this.pushState();
       };
       section.onChanged = () => this.pushState();
+      section.configureView = (view) => this.prepareView(view);
     }
+  }
 
-    this.left.configureView = (view, key) => {
-      view.onChanged = () => this.pushState();
-      view.onNavigateAway = (url) => this.openInRight(url);
-      view.onNewWindow = (url) => this.openInRight(url);
-      view.onPopupCreated = (popup) => this.adoptPopup(popup);
-      // Shift+click on the left navigates the left view in place (instead of
-      // routing right).
-      view.onFlipNavigation = (url) => view.navigate(url);
-      view.onSplitNudge = (d) => this.nudgeSplit(d);
-      view.onFindRequested = () => this.notifyChrome('space:openFind', 'left');
-      view.onFoundInPage = (active, matches) =>
-        this.notifyChrome('space:findResult', 'left', active, matches);
-      extensionsAddTab(view.webContents, this.win);
-      if (key !== 'adhoc') {
-        // This tab belongs to a home link: live favicons refresh its tile
-        // icon (services on one domain — Gmail vs Calendar — only get
-        // distinct icons this way), and its app's manifest background is
-        // remembered for the launch splash.
-        view.capturesFavicons = true;
-        view.onFaviconCaptured = (pageUrl, image) => this.onLinkFavicon(key, pageUrl, image);
-        view.onAppBackground = (pageUrl, css) => this.onLinkBackground(key, pageUrl, css);
-      }
-      this.attachContextMenu(view);
-    };
+  /**
+   * Wires a new page into this window. Both sections share one set of
+   * callbacks, each resolving against the section holding the view at the
+   * time it fires rather than the one that created it — a page can move
+   * between them (docs/behaviors.md → Sections lifecycle).
+   */
+  private prepareView(view: ContentView): void {
+    view.onChanged = () => this.pushState();
+    view.onNavigateAway = (url) => this.routeAway(view, url);
+    view.onNewWindow = (url) => this.routeAway(view, url);
+    view.onPopupCreated = (popup) => this.adoptPopup(popup);
+    // Shift+click flips the target section, so the link opens on the left
+    // either way: in place when the view is already the left one.
+    view.onFlipNavigation = (url) =>
+      this.sideOf(view) === 'left' ? view.navigate(url) : this.left.promote(url);
+    view.onSplitNudge = (d) => this.nudgeSplit(d);
+    view.onFindRequested = () => this.notifyChrome('space:openFind', this.sideOf(view));
+    view.onFoundInPage = (active, matches) =>
+      this.notifyChrome('space:findResult', this.sideOf(view), active, matches);
+    // Only fire on a home link's tab: live favicons refresh its tile icon
+    // (services on one domain — Gmail vs Calendar — only get distinct icons
+    // this way), and its app's manifest background feeds the launch splash.
+    view.onFaviconCaptured = (pageUrl, image) => this.onLinkFavicon(view, pageUrl, image);
+    view.onAppBackground = (pageUrl, css) => this.onLinkBackground(view, pageUrl, css);
+    extensionsAddTab(view.webContents, this.win);
+    this.attachContextMenu(view);
+  }
 
-    this.right.configureView = (view) => {
-      view.onChanged = () => this.pushState();
-      view.onNavigateAway = (url) => view.navigate(url);
-      view.onNewWindow = (url) => view.navigate(url);
-      view.onPopupCreated = (popup) => this.adoptPopup(popup);
-      // Shift+click on the right opens on the left; the right section stays
-      // open (unlike "Move page to left").
-      view.onFlipNavigation = (url) => this.left.promote(url);
-      view.onSplitNudge = (d) => this.nudgeSplit(d);
-      view.onFindRequested = () => this.notifyChrome('space:openFind', 'right');
-      view.onFoundInPage = (active, matches) =>
-        this.notifyChrome('space:findResult', 'right', active, matches);
-      extensionsAddTab(view.webContents, this.win);
-      this.attachContextMenu(view);
-    };
+  /**
+   * Routing (docs/behaviors.md): a user navigation leaving the pinned left
+   * view, or a page asking for a tab, lands in the right section. The right
+   * view is the free-browsing pane and navigates in place.
+   */
+  private routeAway(view: ContentView, url: string): void {
+    if (this.sideOf(view) === 'left') this.openInRight(url);
+    else view.navigate(url);
+  }
+
+  /** Which section is showing this view now. */
+  private sideOf(view: ContentView): Side {
+    return this.left.owns(view) ? 'left' : 'right';
   }
 
   /** A home-link tab reported its page's favicon; refresh the tile icon.
    * Host-guarded: the tab can be navigated away from its link in place
    * (forms, shift+click) — some other site's icon must not take the tile. */
-  private onLinkFavicon(linkId: string, pageUrl: string, image: Buffer): void {
-    const link = this.space.links.find((l) => l.id === linkId);
+  private onLinkFavicon(view: ContentView, pageUrl: string, image: Buffer): void {
+    const link = this.space.links.find((l) => l.id === view.linkId);
     if (!link || !sameAuthority(link.url, pageUrl)) return;
     if (storeIcon(link, image)) {
       spacesStore.save();
@@ -216,8 +218,8 @@ export class SpaceWindowController {
 
   /** A home-link tab read its app's manifest background; remember it for the
    * launch splash. Host-guarded like the favicon. */
-  private onLinkBackground(linkId: string, pageUrl: string, background: string): void {
-    const link = this.space.links.find((l) => l.id === linkId);
+  private onLinkBackground(view: ContentView, pageUrl: string, background: string): void {
+    const link = this.space.links.find((l) => l.id === view.linkId);
     if (!link || link.background === background || !sameAuthority(link.url, pageUrl)) return;
     link.background = background;
     spacesStore.save();
@@ -230,7 +232,7 @@ export class SpaceWindowController {
    */
   private attachContextMenu(view: ContentView): void {
     view.webContents.on('context-menu', (_event, params) => {
-      const isLeft = view.isLeft;
+      const isLeft = this.sideOf(view) === 'left';
       const template: MenuItemConstructorOptions[] = [];
 
       if (params.linkURL && /^https?:/i.test(params.linkURL)) {
@@ -416,12 +418,22 @@ export class SpaceWindowController {
     this.right.showHome();
   }
 
-  /** "Move page to left": left keeps its trail with this URL on top; right closes. */
+  /**
+   * "Move page to left": the right's live view moves into the left section and
+   * the right closes. The page itself is handed over rather than reloaded, so
+   * it keeps its document, scroll position, and playing media; the left's
+   * trail continues beneath it.
+   */
   promoteToLeft(): void {
-    const url = this.right.activeView?.currentUrl();
-    if (!url) return;
+    const view = this.right.activeView;
+    if (!view || !view.currentUrl()) return;
+    this.right.release(view);
+    this.left.takeOver(view);
+    // The view never leaves the window, so syncViews sees it as already
+    // attached and says nothing; the extension host still has to hear that
+    // the left section's active tab changed.
+    extensionsSelectTab(view.webContents);
     this.closeRightSection();
-    this.left.promote(url);
   }
 
   closeRightSection(): void {
@@ -549,10 +561,17 @@ export class SpaceWindowController {
 
     this.extensionPopup?.close();
     const placement = settingsStore.current.toolbarPosition === 'top' ? 'below' : 'right';
-    const popup = new ExtensionPopup(this.win, activation.url, anchor, placement, (url) => {
-      if (side === 'left') this.openInRight(url);
-      else this.sectionView('right')?.navigate(url);
-    });
+    const popup = new ExtensionPopup(
+      this.win,
+      this.session,
+      activation.url,
+      anchor,
+      placement,
+      (url) => {
+        if (side === 'left') this.openInRight(url);
+        else this.sectionView('right')?.navigate(url);
+      }
+    );
     popup.onClosed = () => {
       if (this.extensionPopup === popup) this.extensionPopup = null;
     };

@@ -19,7 +19,7 @@ the Manager window as the launcher. Each space window is an Electron
 | Browser engine | Chromium (bundled with Electron) |
 | Build | electron-vite (main/preload/renderer, HMR for the chrome UI) |
 | Persistence | JSON files in the `Flank-Electron` userData folder |
-| Extensions | `electron-chrome-extensions` on the shared session |
+| Extensions | `electron-chrome-extensions`, one instance per profile session |
 | Packaging | electron-builder (zip/tar.gz, unzip-and-run; no installer) |
 
 ## Process model
@@ -40,11 +40,22 @@ the Manager window as the launcher. Each space window is an Electron
 - **Processes.** One main process owns all windows, stores, and routing.
   Each `WebContentsView` (chrome UI and pages alike) renders in Chromium
   renderer processes.
-- **Shared profile.** Every content view in every space uses one persistent
-  partition (`persist:flank`), so cookies, logins, and cache are shared
-  app-wide. Both it and the JSON stores live in the app's own data folder
+- **Browser profiles.** Each Flank profile is one persistent Chromium partition
+  (`persist:flank` for the first, `persist:flank-<profileId>` after that), and
+  every content view of every space in it uses that partition — so cookies,
+  logins, and cache are common to a profile's spaces and invisible between
+  profiles. Partitions and the JSON stores share the app's own data folder
   (`Flank-Electron` under the platform's user application data directory;
-  `userData` is pointed there).
+  `userData` is pointed there, and the engine puts partitions in
+  `Partitions/<name>/` beneath it).
+  A partition is created on demand, when a profile's first space opens, which
+  means nothing session-scoped can be installed once at startup the way it could
+  with a single profile: permission, download, screen-share, and extension setup
+  is registered as a *preparer* (`browser-session.ts`) and run against every
+  session as it appears. Opening a space awaits its profile's extensions before
+  the window exists, since a content script that isn't registered before a page
+  loads never runs on it. Chrome UI views (Manager and space chrome) stay on the
+  default session; they render Flank, not the web.
 - **Identity.** Flank presents Chrome's user agent, not Electron's. Electron's
   default names the app and the framework between the Chrome and Safari
   tokens, and both sites and extensions read it: LastPass took it for the
@@ -63,6 +74,20 @@ Each space window is a `BaseWindow` whose content view stacks:
 2. **Content views** (top) — the pooled page views, positioned by the main
    process into "holes" the chrome reports over IPC (each `WebChrome`
    component measures its content area and sends the rect).
+
+A content view is a page, not a place. The two rules that differ by side —
+whether a user navigation leaving the page routes to the other section, and
+whether the page feeds a home link's tile icon and launch splash — are settings
+the owning section applies (`pinned`, `linkId`), not facts fixed when the view
+is built, and the window's routing callbacks resolve a view's side per event
+(`sideOf`) rather than closing over the section that created it. That is what
+makes "move page to left" a change of ownership instead of a reload: both
+sections' views are already sibling children of the same window on the same
+profile session, and layout is only a question of which rect each is given, so
+handing the view from one section's tab pool to the other's (`release` /
+`takeOver`) and running the next layout pass is the whole move. The view is
+never detached in between, so the extension host has to be told the active tab
+changed explicitly — the attach path it normally hears about does not run.
 
 Flyouts and overlays over web content invert the stack: the chrome view is
 raised to the top (transparent, so only the flyout paints), any outside
@@ -101,6 +126,8 @@ inherited.
 ```
 main process
 ├── window-manager        – open space windows, openSpaces memory, burst-close
+├── browser-session       – one partition per profile + per-session preparers
+├── profiles              – space → profile session, removed-profile cleanup
 ├── stores/               – settings/spaces/sessions over atomic JsonFile
 ├── space-window          – BaseWindow + chrome view + sections, layout, IPC
 │   └── section (×2)      – tab pool (keep-alive per home link + ad-hoc view),
@@ -108,7 +135,7 @@ main process
 │       └── content-view  – one WebContentsView: navigation routing, trail,
 │                           colors, load/crash state, favicon capture, zoom
 ├── manager-window        – launcher window (BrowserWindow, same React app)
-├── extensions            – electron-chrome-extensions + reconcile + buttons
+├── extensions            – electron-chrome-extensions per profile + buttons
 ├── favicons              – live capture + fallback fetch icon cache
 ├── permissions/downloads – session-level handlers → per-window chrome UI
 ├── screen-share          – display-media handler + source picker dialog
@@ -125,7 +152,7 @@ main process
   nudges, form-submit reporting, the adaptive color reporter
   (theme-color/computed colors, re-reported on change), DOM-ready/load
   signals for the load bar, and Ctrl+wheel zoom.
-- **`extension-compat.ts`** — registered on the shared session for extension
+- **`extension-compat.ts`** — registered on every profile session for extension
   frames and service workers, patching two holes in the API surface that make
   extensions fail on load rather than degrade (see Extensions below).
 
@@ -219,13 +246,16 @@ Flank implements them.
 
 ## Extensions
 
-`electron-chrome-extensions` (GPL-3.0 license option) runs on the shared
-session, filling the `chrome.*` gaps Electron leaves (tabs, action popups,
-storage). Content views register as tabs; the section's visible view is the
-"active tab". Reconciliation loads every enabled settings entry once per app
-session at startup — Electron sessions start empty, so reconcile = load —
-and failures are logged and skipped. Engine-assigned ids are written back to
-`settings.json` after loading.
+`electron-chrome-extensions` (GPL-3.0 license option) fills the `chrome.*` gaps
+Electron leaves (tabs, action popups, storage). It binds to one session, so
+there is one instance per profile, keyed by session: content views register as
+tabs on their own profile's instance (`webContents.session` selects it), and the
+section's visible view is the "active tab". Each profile loads every enabled
+settings entry into its partition once, when it is created — Electron partitions
+start empty, so this is a load, not a diff — and failures are logged and
+skipped. Engine ids are derived from the extension folder, so every profile
+agrees on them and the first one to load writes them back to `settings.json`.
+An extension's keep-alive bookkeeping is per profile too, since its worker is.
 
 MV3 background service workers are held alive with an explicit keep-alive
 task (`serviceWorkers.startWorkerForScope` + `startTask`, re-asserted from
@@ -247,14 +277,16 @@ directory except `_locales` — browsers leave webstore verification data in
 reserved names at its root. Icons for the picker travel inline as data URLs,
 since `flank-icon://` only serves files under already-configured extensions.
 
-`chrome.windows.create` opens a standalone "popout" window on the shared
-session, registered as a tab (Bitwarden finishes SSO logins in one; Chrome
-shows these as `type: 'popup'` windows). `chrome.tabs.create` routes through
-Flank's new-window rules instead.
+`chrome.windows.create` opens a standalone "popout" window on the calling
+profile's session, registered as a tab (Bitwarden finishes SSO logins in one;
+Chrome shows these as `type: 'popup'` windows). `chrome.tabs.create` routes
+through Flank's new-window rules instead, into a window of that profile — an
+extension instance belongs to one profile and its tab must not land in another
+one's window.
 
 Toolbar buttons come from each extension's parsed manifest (localized name,
 ~48 px icon served over `flank-icon://`, grayscale in CSS). Clicking opens
-the popup — a small frameless child window on the shared session, anchored
+the popup — a small frameless child window on the space's session, anchored
 beside the button (below it when the toolbar sits on top) and clamped inside
 the window, sized to the page's preferred size, destroyed on
 close; blur light-dismisses, `window.close` works natively, link-outs route
@@ -292,7 +324,8 @@ touching them at preload top level finds nothing there yet.
   defaults.
 - Fire-and-forget tasks funnel exceptions to `debug.log` in the data folder,
   as do uncaught exceptions and unhandled rejections.
-- Extension load failures are logged and skipped; they never block startup.
+- Extension load failures are logged and skipped; they never block startup or
+  keep a profile's first window from opening.
 
 ## Debugging
 

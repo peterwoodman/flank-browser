@@ -40,6 +40,19 @@ export interface AppSettings {
   permissions?: Record<string, Record<string, boolean>>;
 }
 
+/**
+ * One browser profile: a browsing identity, shared by the spaces in it. Each
+ * profile owns a Chromium partition, so cookies, logins, and cache are common
+ * to its spaces and separate from every other profile's.
+ */
+export interface Profile {
+  id: string;
+  name: string;
+  order: number;
+  /** The Chromium partition holding this profile's cookies, logins, and cache. */
+  partition: string;
+}
+
 export interface SpaceLink {
   id: string;
   title: string;
@@ -54,6 +67,8 @@ export interface SpaceLink {
 export interface Space {
   id: string;
   name: string;
+  /** Id of the profile whose browsing data this space's pages use. */
+  profileId: string;
   order: number;
   splitRatio: number;
   /** Id of the backdrop color scheme (see color-schemes.ts). */
@@ -64,6 +79,7 @@ export interface Space {
 
 export interface SpacesFile {
   version: number;
+  profiles: Profile[];
   spaces: Space[];
 }
 
@@ -106,8 +122,9 @@ export function defaultSettings(): AppSettings {
   };
 }
 
+/** Empty of profiles; the store fills in the first one (see SpacesStore.load). */
 export function defaultSpacesFile(): SpacesFile {
-  return { version: 1, spaces: [] };
+  return { version: 1, profiles: [], spaces: [] };
 }
 
 export function emptySection(): SessionSection {

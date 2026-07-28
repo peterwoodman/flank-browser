@@ -1,8 +1,9 @@
 # Demo profile
 
-A throwaway Flank profile of public, ad-free sites, used to take the
+A throwaway Flank data folder of public, ad-free sites, used to take the
 screenshots in `docs/images/`. The window sizes in `spaces.json` are chosen to
-frame well in a shot; the four spaces exist to fill the Manager grid.
+frame well in a shot; the four spaces exist to fill the Manager grid, split
+across two profiles so it shows the grouping.
 
 Point `FLANK_DATA_DIR` at a copy of this folder and the app starts as the demo
 instead of as yours, so nothing here touches real spaces:

@@ -11,8 +11,15 @@ export interface SpaceSummary {
   icons: string[];
 }
 
-export interface ManagerState {
+/** One profile's row in the Manager: its name and the spaces that browse as it. */
+export interface ProfileSummary {
+  id: string;
+  name: string;
   spaces: SpaceSummary[];
+}
+
+export interface ManagerState {
+  profiles: ProfileSummary[];
   settings: AppSettings;
   /** App version, for the Manager's footer; comes from `package.json`. */
   version: string;

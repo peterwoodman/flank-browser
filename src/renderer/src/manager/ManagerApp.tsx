@@ -6,8 +6,9 @@ import { SettingsPage } from './SettingsPage';
 import './manager.css';
 
 /**
- * The Manager window: the app's launcher (space tile grid) with the settings
- * page behind the title-bar gear (the gear becomes a back arrow while open).
+ * The Manager window: the app's launcher (space tiles, grouped by profile) with
+ * the settings page behind the title-bar gear (the gear becomes a back arrow
+ * while open).
  */
 export function ManagerApp(): React.JSX.Element {
   const [state, setState] = useState<ManagerState | null>(null);
@@ -38,7 +39,7 @@ export function ManagerApp(): React.JSX.Element {
         {state === null ? null : showSettings ? (
           <SettingsPage settings={state.settings} onChanged={refresh} />
         ) : (
-          <SpaceGrid spaces={state.spaces} onChanged={refresh} />
+          <SpaceGrid profiles={state.profiles} onChanged={refresh} />
         )}
       </main>
       <footer className="manager-version">{state === null ? '' : `v${state.version}`}</footer>

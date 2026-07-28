@@ -1,5 +1,5 @@
-import { WebContents } from 'electron';
-import { flankSession } from './browser-session';
+import { Session, WebContents } from 'electron';
+import { prepareEverySession } from './browser-session';
 import { settingsStore } from './stores/settings-store';
 import { log } from './log';
 
@@ -15,6 +15,9 @@ import { log } from './log';
  * engine also answers "allow" to by default — so both are installed here, from
  * the same policy, or a page could read a capability as granted that Flank
  * never granted.
+ *
+ * Answers are remembered app-wide rather than per profile: allowing a site your
+ * camera is a decision about that site, not about which identity is browsing it.
  */
 
 /** Permissions that get an explicit prompt; the rest resolve silently. */
@@ -59,50 +62,52 @@ type PromptFn = (contents: WebContents, prompt: PermissionPrompt) => Promise<boo
 let queue: Promise<void> = Promise.resolve();
 
 export function installPermissionHandler(promptFn: PromptFn): void {
-  installCheckHandler();
+  prepareEverySession((ses) => {
+    installCheckHandler(ses);
 
-  flankSession().setPermissionRequestHandler((contents, permission, callback, details) => {
-    const origin = originOf(details.requestingUrl);
+    ses.setPermissionRequestHandler((contents, permission, callback, details) => {
+      const origin = originOf(details.requestingUrl);
 
-    if (SILENTLY_ALLOWED.has(permission)) {
-      callback(true);
-      return;
-    }
-    if (!PROMPTED.has(permission) || !origin || !contents) {
-      log(`permission ${permission} from ${origin || '?'} denied (not promptable)`);
-      callback(false);
-      return;
-    }
-
-    const remembered = settingsStore.current.permissions?.[origin]?.[permission];
-    if (remembered !== undefined) {
-      callback(remembered);
-      return;
-    }
-
-    // One dialog at a time, app-wide.
-    queue = queue.then(async () => {
-      const again = settingsStore.current.permissions?.[origin]?.[permission];
-      if (again !== undefined) {
-        callback(again);
+      if (SILENTLY_ALLOWED.has(permission)) {
+        callback(true);
         return;
       }
-      let allowed = false;
-      try {
-        allowed = await promptFn(contents, {
-          origin,
-          permission,
-          description: describe(permission)
-        });
-      } catch {
-        allowed = false;
+      if (!PROMPTED.has(permission) || !origin || !contents) {
+        log(`permission ${permission} from ${origin || '?'} denied (not promptable)`);
+        callback(false);
+        return;
       }
-      settingsStore.update((s) => {
-        s.permissions ??= {};
-        s.permissions[origin] ??= {};
-        s.permissions[origin][permission] = allowed;
+
+      const remembered = settingsStore.current.permissions?.[origin]?.[permission];
+      if (remembered !== undefined) {
+        callback(remembered);
+        return;
+      }
+
+      // One dialog at a time, app-wide.
+      queue = queue.then(async () => {
+        const again = settingsStore.current.permissions?.[origin]?.[permission];
+        if (again !== undefined) {
+          callback(again);
+          return;
+        }
+        let allowed = false;
+        try {
+          allowed = await promptFn(contents, {
+            origin,
+            permission,
+            description: describe(permission)
+          });
+        } catch {
+          allowed = false;
+        }
+        settingsStore.update((s) => {
+          s.permissions ??= {};
+          s.permissions[origin] ??= {};
+          s.permissions[origin][permission] = allowed;
+        });
+        callback(allowed);
       });
-      callback(allowed);
     });
   });
 }
@@ -114,8 +119,8 @@ export function installPermissionHandler(promptFn: PromptFn): void {
  * answers no and the request handler prompts when the page actually asks for
  * it — which is the sequence those APIs already follow.
  */
-function installCheckHandler(): void {
-  flankSession().setPermissionCheckHandler((_contents, permission, requestingOrigin, details) => {
+function installCheckHandler(ses: Session): void {
+  ses.setPermissionCheckHandler((_contents, permission, requestingOrigin, details) => {
     if (SILENTLY_ALLOWED.has(permission)) return true;
     const origin =
       originOf(requestingOrigin) ||

@@ -1,6 +1,6 @@
 import { desktopCapturer, webContents, WebContents } from 'electron';
 import type { DesktopCapturerSource, Streams } from 'electron';
-import { flankSession } from './browser-session';
+import { prepareEverySession } from './browser-session';
 import { screenCaptureUsesPortal } from './linux-platform';
 import { log, logError } from './log';
 
@@ -44,24 +44,26 @@ type PickFn = (contents: WebContents, prompt: ScreenSharePrompt) => Promise<stri
 const THUMBNAIL_SIZE = { width: 320, height: 180 };
 
 export function installDisplayMediaHandler(pickFn: PickFn): void {
-  flankSession().setDisplayMediaRequestHandler(
-    (request, callback) => {
-      const contents = request.frame ? webContents.fromFrame(request.frame) : undefined;
-      if (!contents) {
-        callback({});
-        return;
-      }
-      const origin = originOf(request.securityOrigin);
-      grant(contents, origin, request.audioRequested, pickFn)
-        .catch((err) => {
-          logError(`screen share for ${origin}`, err);
-          return {} as Streams;
-        })
-        .then(callback);
-    },
-    // macOS 15+ has a system picker; when it is used this handler never runs.
-    { useSystemPicker: true }
-  );
+  prepareEverySession((ses) => {
+    ses.setDisplayMediaRequestHandler(
+      (request, callback) => {
+        const contents = request.frame ? webContents.fromFrame(request.frame) : undefined;
+        if (!contents) {
+          callback({});
+          return;
+        }
+        const origin = originOf(request.securityOrigin);
+        grant(contents, origin, request.audioRequested, pickFn)
+          .catch((err) => {
+            logError(`screen share for ${origin}`, err);
+            return {} as Streams;
+          })
+          .then(callback);
+      },
+      // macOS 15+ has a system picker; when it is used this handler never runs.
+      { useSystemPicker: true }
+    );
+  });
 }
 
 async function grant(

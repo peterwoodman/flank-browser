@@ -1,7 +1,6 @@
-import { BrowserWindow, WebContentsView, ipcMain } from 'electron';
+import { BrowserWindow, Session, WebContentsView, ipcMain } from 'electron';
 import { TrailEntry, TRAIL_CAP } from '@shared/types';
 import { PageColors, SplashDto } from '@shared/space-types';
-import { flankSession } from './browser-session';
 import { contentPreloadPath } from './renderer-url';
 import { isPopupTarget, isWebUrl } from './navigation-input';
 import { readManifest } from './manifest-info';
@@ -35,12 +34,27 @@ export function registerContentMessageRouting(): void {
 
 /**
  * One browsed page: a WebContentsView plus Flank's per-view state — trail,
- * page title/colors, load/crash state, and the left view's routing rules
- * (docs/behaviors.md → Navigation routing).
+ * page title/colors, and load/crash state.
+ *
+ * A view is a page, not a place: which section shows it is the section's
+ * business, so the two side-dependent rules below are mutable settings its
+ * owner applies. That is what lets a page move between sections without
+ * reloading (docs/behaviors.md → Sections lifecycle).
  */
 export class ContentView {
   readonly view: WebContentsView;
-  readonly isLeft: boolean;
+
+  /**
+   * The pinned page (the left section): a user navigation that leaves it
+   * routes to the other section rather than loading here
+   * (docs/behaviors.md → Navigation routing).
+   */
+  pinned = false;
+  /**
+   * Set while this view is a home link's tab: its live favicons and its app's
+   * manifest background feed that link's tile icon and launch splash.
+   */
+  linkId: string | null = null;
 
   trail: TrailEntry[] = []; // newest first
   private trailPosition = 0; // index of the currently displayed entry
@@ -59,12 +73,10 @@ export class ContentView {
   private lastFaviconSource: string | null = null; // last URL a favicon was captured for
   /** Favicon URLs the engine reported for the current page, newest event wins. */
   latestFaviconUrls: string[] = [];
-  /** Set on left home-link tabs only: live favicons refresh the link's tile icon. */
-  capturesFavicons = false;
 
   /** Any state observed by the chrome changed; owner pushes a fresh snapshot. */
   onChanged: () => void = () => {};
-  /** Left view only: a user navigation that leaves the pinned page. */
+  /** Pinned view only: a user navigation that leaves the pinned page. */
   onNavigateAway: (url: string) => void = () => {};
   onNewWindow: (url: string) => void = () => {};
   /** The page opened a real popup window (auth flows); owner adopts it. */
@@ -76,14 +88,14 @@ export class ContentView {
   onFindRequested: () => void = () => {};
   /** findInPage progress for the chrome's find bar. */
   onFoundInPage: (activeMatch: number, matches: number) => void = () => {};
-  /** Left home-link tabs: a fresh page favicon was captured (page URL, image bytes). */
+  /** A home link's tab: a fresh page favicon was captured (page URL, image bytes). */
   onFaviconCaptured: (pageUrl: string, image: Buffer) => void = () => {};
 
-  constructor(isLeft: boolean) {
-    this.isLeft = isLeft;
+  /** `ses` is the profile's partition: what the page browses as. */
+  constructor(ses: Session) {
     this.view = new WebContentsView({
       webPreferences: {
-        session: flankSession(),
+        session: ses,
         preload: contentPreloadPath,
         sandbox: true,
         contextIsolation: true
@@ -108,30 +120,32 @@ export class ContentView {
     });
     wc.on('did-create-window', (popup) => this.onPopupCreated(popup));
 
-    if (isLeft) {
-      wc.on('will-navigate', (event) => {
-        // Only user-initiated jumps to a new document leave the pinned view;
-        // script navigations (redirect bounces, SSO hops, SPA boot) are the
-        // launched page doing its own thing and stay put (docs/behaviors.md).
-        // The engine exposes no user-gesture flag here, so a recent
-        // click/Enter reported by the content preload stands in for one.
-        // Host navigations don't raise will-navigate; redirects, reloads,
-        // and back/forward don't either.
-        // hostNavigationPending is a belt-and-braces guard; it is cleared as
-        // soon as the host navigation *starts* (below), so a user click made
-        // while that navigation is still loading routes normally.
-        if (this.hostNavigationPending) return;
-        const url = event.url;
-        if (!/^https?:/i.test(url)) return;
-        if (url === wc.getURL()) return;
-        if (Date.now() - this.lastFormSubmit < FORM_SUBMIT_WINDOW_MS) return;
-        if (Date.now() - this.lastUserGesture > GESTURE_WINDOW_MS) return;
+    wc.on('will-navigate', (event) => {
+      // Only the pinned view routes away; the free-browsing pane loads
+      // everything in place. Checked per event rather than per view, so the
+      // rule follows the section a moved page lands in.
+      if (!this.pinned) return;
+      // Only user-initiated jumps to a new document leave the pinned view;
+      // script navigations (redirect bounces, SSO hops, SPA boot) are the
+      // launched page doing its own thing and stay put (docs/behaviors.md).
+      // The engine exposes no user-gesture flag here, so a recent
+      // click/Enter reported by the content preload stands in for one.
+      // Host navigations don't raise will-navigate; redirects, reloads,
+      // and back/forward don't either.
+      // hostNavigationPending is a belt-and-braces guard; it is cleared as
+      // soon as the host navigation *starts* (below), so a user click made
+      // while that navigation is still loading routes normally.
+      if (this.hostNavigationPending) return;
+      const url = event.url;
+      if (!/^https?:/i.test(url)) return;
+      if (url === wc.getURL()) return;
+      if (Date.now() - this.lastFormSubmit < FORM_SUBMIT_WINDOW_MS) return;
+      if (Date.now() - this.lastUserGesture > GESTURE_WINDOW_MS) return;
 
-        event.preventDefault();
-        this.setLoading(false);
-        this.onNavigateAway(url);
-      });
-    }
+      event.preventDefault();
+      this.setLoading(false);
+      this.onNavigateAway(url);
+    });
 
     wc.on('did-start-navigation', (details) => {
       if (!details.isMainFrame || details.isSameDocument) return;
@@ -154,8 +168,8 @@ export class ContentView {
 
       this.setPageTitle(wc.getTitle());
 
-      // Left section: the manifest background feeds the home link's splash.
-      if (this.isLeft) {
+      // A home link's tab: the manifest background feeds its launch splash.
+      if (this.linkId) {
         fireAndForget('launch metadata', this.updateLaunchMetadata(url));
       }
 
@@ -207,7 +221,7 @@ export class ContentView {
 
     wc.on('page-favicon-updated', (_event, urls) => {
       this.latestFaviconUrls = urls;
-      if (!this.capturesFavicons) return;
+      if (!this.linkId) return;
       // Once per page: sites with badge favicons (unread counts) re-fire this
       // constantly, and each capture costs a probe + downloads.
       const source = wc.getURL();
@@ -471,13 +485,13 @@ export class ContentView {
     this.onChanged();
   }
 
-  /** Left section: after a page settles, capture the app's manifest
-   * background color for the home link's launch splash. */
+  /** After a home link's page settles, capture its app's manifest background
+   * color for the link's launch splash. */
   private async updateLaunchMetadata(pageUrl: string): Promise<void> {
     const manifest = await readManifest(this.webContents);
     if (manifest.backgroundColor) this.onAppBackground(pageUrl, manifest.backgroundColor);
   }
 
-  /** Left section, home-link tabs: manifest background captured for the splash. */
+  /** A home link's tab: manifest background captured for the splash. */
   onAppBackground: (pageUrl: string, cssColor: string) => void = () => {};
 }

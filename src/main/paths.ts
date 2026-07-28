@@ -23,6 +23,11 @@ export function sessionFilePath(spaceId: string): string {
   return path.join(sessionsDir, `${spaceId}.json`);
 }
 
+/** Where the engine keeps a named partition's profile data (one folder per profile). */
+export function partitionDir(partition: string): string {
+  return path.join(dataDir, 'Partitions', partition.replace(/^persist:/, ''));
+}
+
 export function ensureDataDirs(): void {
   fs.mkdirSync(sessionsDir, { recursive: true });
   fs.mkdirSync(iconsDir, { recursive: true });

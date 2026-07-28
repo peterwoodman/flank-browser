@@ -1,6 +1,6 @@
 import { app } from 'electron';
 import { dataDir, ensureDataDirs } from './paths';
-import { installGlobalErrorLogging, log, logError } from './log';
+import { installGlobalErrorLogging, log, logError, fireAndForget } from './log';
 import { settingsStore } from './stores/settings-store';
 import { spacesStore } from './stores/spaces-store';
 import { parseSpaceArg } from './args';
@@ -12,7 +12,7 @@ import { registerContentMessageRouting } from './content-view';
 import { installPermissionHandler } from './permissions';
 import { installDisplayMediaHandler } from './screen-share';
 import { installDownloadHandler } from './downloads';
-import { initExtensions, reconcileExtensions } from './extensions';
+import { initExtensions } from './extensions';
 import { describeLinuxSession } from './linux-platform';
 import { ensureDesktopEntry } from './desktop-entry';
 import * as windowManager from './window-manager';
@@ -55,7 +55,7 @@ if (!app.requestSingleInstanceLock({ spaceArg: parseSpaceArg(process.argv) })) {
     }
   });
 
-  app.whenReady().then(async () => {
+  app.whenReady().then(() => {
     installGlobalErrorLogging();
     ensureDataDirs();
     settingsStore.load();
@@ -65,11 +65,11 @@ if (!app.requestSingleInstanceLock({ spaceArg: parseSpaceArg(process.argv) })) {
     registerManagerIpc();
     registerSpaceIpc();
     registerContentMessageRouting();
+    // These all install per browsing session, as each profile's partition is
+    // created; only the app-wide policy is decided here.
     initExtensions({
-      openTab: (url) => windowManager.focusedController()?.openTabForExtension(url) ?? null
+      openTab: (url, ses) => windowManager.focusedController(ses)?.openTabForExtension(url) ?? null
     });
-    // Before any window opens, so content scripts reach the first pages too.
-    await reconcileExtensions().catch((err) => logError('extension reconcile', err));
     installPermissionHandler((contents, prompt) => {
       const c = windowManager.controllerForWebContents(contents.id);
       return c ? c.showPermissionPrompt(prompt) : Promise.resolve(false);
@@ -109,7 +109,7 @@ function handleActivation(spaceArg: string | null, isSecondInstance: boolean): v
   if (spaceArg) {
     const space = spacesStore.byNameOrId(spaceArg);
     if (space) {
-      windowManager.openSpace(space.id);
+      fireAndForget('open space', windowManager.openSpace(space.id));
       return;
     }
     log(`--space "${spaceArg}" matched no space`);
@@ -122,7 +122,7 @@ function handleActivation(spaceArg: string | null, isSecondInstance: boolean): v
 
   const toRestore = settingsStore.current.openSpaces.filter((id) => spacesStore.byId(id));
   if (toRestore.length > 0) {
-    for (const id of toRestore) windowManager.openSpace(id);
+    for (const id of toRestore) fireAndForget('restore space', windowManager.openSpace(id));
   } else {
     openManager();
   }

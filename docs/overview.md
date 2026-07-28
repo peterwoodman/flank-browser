@@ -13,8 +13,11 @@ per OS called out where it applies.
 ## The model
 
 - **Spaces** — named collections of pinned links with their own window,
-  layout, and browsing session. All spaces share one browser profile
-  (cookies, logins, extensions).
+  layout, and browsing session.
+- **Profiles** — each space belongs to a profile, and a profile is a browsing
+  identity: the spaces in one share its cookies, logins, and cache, and see
+  nothing of any other profile's. One profile is the normal case; the Manager
+  groups its spaces per profile once there is more than one.
 - **Launcher flow** — launching Flank reopens the spaces from the last
   session; with nothing to restore it opens the **Manager window**, a
   launcher-styled grid of space tiles. The Manager is the hub every space is

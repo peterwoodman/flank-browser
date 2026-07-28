@@ -1,7 +1,8 @@
 # Flank — Agent Notes
 
 Flank is a personal, space-oriented web browser: no tabs, no persistent
-address bar. Windows share one browser profile; app data is JSON. It is an
+address bar. Spaces are grouped into profiles, each with its own Chromium
+partition (cookies, logins, cache); app data is JSON. It is an
 Electron + TypeScript + React app running on Windows, macOS, and Linux, with
 data under the platform's `userData` directory (`%APPDATA%\Flank-Electron` on
 Windows).
@@ -95,6 +96,11 @@ running.)
   transparent: `setBackgroundColor('#00000000')` is re-applied after every
   chrome load (a load resets it), and no CSS ancestor of a content hole may
   paint a background, or the pages blank out whenever the chrome is raised.
+- **Session-scoped setup goes through `prepareEverySession`.** Each profile is
+ its own Chromium partition, created when its first space opens, so anything
+ installed on a session (permission, download, screen-share handlers, the
+ extension host) must be registered as a preparer rather than applied once at
+ startup — otherwise it silently covers only the first profile used.
 - **Extension service workers need a keep-alive.** Chromium idle-kills MV3
   workers after ~30 s and Electron does not revive them for incoming runtime
   messages, so anything a content script relays later is silently lost.

@@ -36,9 +36,61 @@
   }
 }
 
-.space-grid,
+.profiles-view,
 .settings-page {
   animation: page-in var(--dur-dialog) var(--ease-decel);
+}
+
+/* Fills the content area so "Add profile" can sit at the bottom edge while the
+   tiles don't reach it (like the home view's "Add link"). */
+.profiles-view {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.profile-group {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border-radius: 10px;
+}
+
+/* While a space tile from another profile hovers over this one, ready to be
+   copied into it. */
+.profile-group.drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: 6px;
+}
+
+.profile-divider {
+  height: 1px;
+  background: var(--border);
+}
+
+.profile-name {
+  align-self: center;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--fg-muted);
+  transition:
+    background-color var(--dur-state) linear,
+    color var(--dur-state) linear;
+}
+
+.profile-name:hover {
+  background: var(--bg-hover);
+  color: var(--fg);
+}
+
+.profile-add {
+  align-self: center;
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .space-grid {
@@ -116,7 +168,7 @@
   color: var(--fg-muted);
 }
 
-.tile-plus {
+.tile-glyph {
   font-size: 30px;
   color: var(--fg-muted);
 }
@@ -147,6 +199,24 @@
 
 .space-tile-new:hover {
   background: var(--bg-hover);
+}
+
+/* Only ever shown on an empty profile, beside its "New space" tile. */
+.space-tile-remove .space-tile-name,
+.space-tile-remove .tile-glyph {
+  color: #c42b1c;
+}
+
+@media (prefers-color-scheme: dark) {
+  .space-tile-remove .space-tile-name,
+  .space-tile-remove .tile-glyph {
+    color: #ff99a4;
+  }
+}
+
+/* The tile being dragged onto another profile. */
+.space-tile.dragging {
+  opacity: 0.4;
 }
 
 /* --- Edit space dialog --- */

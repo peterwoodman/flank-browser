@@ -1,8 +1,14 @@
 import { app, ipcMain, dialog, BrowserWindow } from 'electron';
 import fs from 'fs';
 import path from 'path';
-import { AppSettings } from '@shared/types';
-import { BrowserScanDto, ImportResultDto, ManagerState, SpaceSummary } from '@shared/ipc-types';
+import { AppSettings, Space } from '@shared/types';
+import {
+  BrowserScanDto,
+  ImportResultDto,
+  ManagerState,
+  ProfileSummary,
+  SpaceSummary
+} from '@shared/ipc-types';
 import { settingsStore } from '../stores/settings-store';
 import { spacesStore } from '../stores/spaces-store';
 import { newId } from '../ids';
@@ -11,36 +17,52 @@ import { parseExtensionManifest } from '../extension-manifest';
 import { isValidTemplate } from '../navigation-input';
 import { importExtensions, scanBrowsers } from '../browser-import';
 import { applyLaunchAtLogin } from '../launch-at-login';
+import { discardProfileData } from '../profiles';
 import { dataDir } from '../paths';
 import * as windowManager from '../window-manager';
 
-function spaceSummaries(): SpaceSummary[] {
-  return spacesStore.all.map((space) => {
-    const icons: string[] = [];
-    for (const link of [...space.links].sort((a, b) => a.order - b.order)) {
-      if (icons.length === 4) break;
-      if (!link.icon) continue;
-      if (fs.existsSync(path.join(dataDir, link.icon))) icons.push(iconUrl(link.icon));
-    }
-    return {
-      id: space.id,
-      name: space.name,
-      colorScheme: space.colorScheme,
-      open: windowManager.isSpaceOpen(space.id),
-      icons
-    };
-  });
+function spaceSummary(space: Space): SpaceSummary {
+  const icons: string[] = [];
+  for (const link of [...space.links].sort((a, b) => a.order - b.order)) {
+    if (icons.length === 4) break;
+    if (!link.icon) continue;
+    if (fs.existsSync(path.join(dataDir, link.icon))) icons.push(iconUrl(link.icon));
+  }
+  return {
+    id: space.id,
+    name: space.name,
+    colorScheme: space.colorScheme,
+    open: windowManager.isSpaceOpen(space.id),
+    icons
+  };
+}
+
+/** The launcher lists spaces grouped by the profile they browse as. */
+function profileSummaries(): ProfileSummary[] {
+  return spacesStore.profiles.map((profile) => ({
+    id: profile.id,
+    name: profile.name,
+    spaces: spacesStore.spacesIn(profile.id).map(spaceSummary)
+  }));
 }
 
 export function registerManagerIpc(): void {
   ipcMain.handle('flank:manager:getState', (): ManagerState => {
     // getVersion() reads the version out of package.json (the generated one in
     // a packaged build), so the footer needs no build step to stay current.
-    return { spaces: spaceSummaries(), settings: settingsStore.current, version: app.getVersion() };
+    return {
+      profiles: profileSummaries(),
+      settings: settingsStore.current,
+      version: app.getVersion()
+    };
   });
 
-  ipcMain.handle('flank:spaces:create', (_e, name: string) => {
-    spacesStore.create(String(name).trim() || 'New space');
+  ipcMain.handle('flank:spaces:create', (_e, name: string, profileId: string) => {
+    spacesStore.create(String(name).trim() || 'New space', String(profileId));
+  });
+
+  ipcMain.handle('flank:spaces:duplicate', (_e, id: string, profileId: string) => {
+    spacesStore.duplicate(id, String(profileId));
   });
 
   ipcMain.handle(
@@ -55,7 +77,7 @@ export function registerManagerIpc(): void {
   );
 
   // Removes the space's session file and its entry everywhere; never touches
-  // shared browser data.
+  // its profile's browsing data, which its other spaces share.
   ipcMain.handle('flank:spaces:delete', (_e, id: string) => {
     windowManager.closeSpaceWindow(id);
     spacesStore.remove(id);
@@ -66,8 +88,21 @@ export function registerManagerIpc(): void {
     spacesStore.move(id, delta === -1 ? -1 : 1);
   });
 
-  ipcMain.handle('flank:spaces:open', (_e, id: string) => {
-    windowManager.openSpace(id);
+  ipcMain.handle('flank:spaces:open', (_e, id: string) => windowManager.openSpace(id));
+
+  ipcMain.handle('flank:profiles:create', (_e, name: string) => {
+    spacesStore.createProfile(String(name).trim() || 'New profile');
+  });
+
+  ipcMain.handle('flank:profiles:rename', (_e, id: string, name: string) => {
+    spacesStore.renameProfile(id, String(name).trim());
+  });
+
+  // Only an empty profile can go, so no window is browsing as it; its cookies,
+  // logins, and cache go with it.
+  ipcMain.handle('flank:profiles:remove', async (_e, id: string) => {
+    const removed = spacesStore.removeProfile(id);
+    if (removed) await discardProfileData(removed);
   });
 
   ipcMain.handle('flank:settings:update', (_e, patch: Partial<AppSettings>) => {

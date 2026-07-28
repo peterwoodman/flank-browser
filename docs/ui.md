@@ -101,14 +101,33 @@ identifies itself, since there is no About dialog.
   noise at tile size. Click a tile to
   open/focus the space. Right-click for Open / Edit space / Delete / Move up
   / Move down — Delete asks for confirmation, removes the space's session
-  file and its entry everywhere, and never touches shared browser data. A
-  trailing "＋ New space" tile creates one (name prompt), with the default
-  color scheme.
+  file and its entry everywhere, and never touches the profile's browsing data,
+  which its other spaces share. A trailing "＋ New space" tile creates one
+  (name prompt) in that profile, with the default color scheme.
   - **Edit space** opens a dialog holding the space's name and its color
     scheme: one swatch per scheme in the palette, each painted with the wash it
     produces over the current theme rather than as a bare color chip. Saving
     applies both at once, and an open window for that space repaints
     immediately — wash and caption buttons — with no restart.
+- **Profiles** — the grid is one row of tiles per profile (`behaviors.md` →
+  Profiles), each separated from the one above by a rule and labelled with the
+  profile's name; clicking the name renames it. With a single profile there is
+  no rule and no label: the launcher is just its spaces, and profiles cost
+  nothing to whoever never adds one. Each row ends in its own "＋ New space"
+  tile, so a new space is always created in a named profile rather than a
+  default one.
+  - **＋ Add profile** sits at the bottom of the canvas — the position and style
+    the home view's "Add link" has — pushed there while the tiles don't reach
+    it. It asks for a name and appends an empty row.
+  - **Remove profile** appears as a tile beside "＋ New space", only on a
+    profile holding no spaces and only while another profile exists (a space has
+    to have somewhere to browse from). It confirms first, and takes that
+    profile's cookies, logins, and cache with it.
+  - **Dragging a space tile onto another profile** copies it there, after a
+    confirmation naming both. The copy keeps the name, color, and pinned links,
+    but browses as its new profile — so it starts signed out. Spaces are copied
+    rather than moved: which profile a space browses as decides which logins it
+    sees, and moving one would silently change the pages it shows.
 - **Settings** — behind the gear button in the title bar (the gear becomes a
   back arrow while open): search engine URL template, search suggestions URL
   template, launch-at-login toggle, toolbar position (side or top of each
@@ -205,7 +224,7 @@ Toolbar buttons, in order — top to bottom on the side, left to right on top:
 |---|---|---|
 | Open right view | **left** section only; hidden while the right section is already open | Opens the right section (home view) |
 | Close view | **right** section only | Closes this section; the left section expands |
-| Move page to left | **right** section only | Navigates the left view to this page (the left view's trail is kept, with this URL added on top) and closes the right section |
+| Move page to left | **right** section only | Moves this page into the left section without reloading it, and closes the right section; the left section's trail continues beneath the moved page's own (`behaviors.md` → Sections lifecycle) |
 | Back | both; visible only while the browser can go back (and the view shows an http(s) page) | Steps back through the browser engine's history — unlike the trail, this reaches SPA route changes (pushState), which the trail collapses into one entry |
 | Home | both | Switches this section to the home view |
 | Refresh | both | Reloads the current page |

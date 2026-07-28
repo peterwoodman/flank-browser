@@ -1,138 +1,140 @@
 import { useState } from 'react';
-import type { SpaceSummary } from '@shared/ipc-types';
+import type { ProfileSummary, SpaceSummary } from '@shared/ipc-types';
 import { invoke } from '../ipc';
-import { washVars } from '../wash';
-import { ContextMenu, MenuItem } from '../components/ContextMenu';
 import { NamePrompt, Confirm } from '../components/Modal';
+import { PlusIcon } from '../components/Icons';
 import { EditSpaceDialog } from './EditSpaceDialog';
+import { ProfileGroup, SpaceDrag } from './ProfileGroup';
 
 type Dialog =
-  | { kind: 'new' }
+  | { kind: 'newSpace'; profile: ProfileSummary }
   | { kind: 'edit'; space: SpaceSummary }
   | { kind: 'delete'; space: SpaceSummary }
+  | { kind: 'newProfile' }
+  | { kind: 'renameProfile'; profile: ProfileSummary }
+  | { kind: 'removeProfile'; profile: ProfileSummary }
+  | { kind: 'duplicate'; space: SpaceSummary; profile: ProfileSummary }
   | null;
 
-/** The Manager's main view: one 132x132 tile per space plus a trailing "New space" tile. */
+/**
+ * The Manager's main view: each profile's spaces as a row of 132x132 tiles,
+ * with "Add profile" at the bottom of the canvas. Profile names only appear
+ * once there is more than one — with a single profile the launcher is just its
+ * spaces.
+ */
 export function SpaceGrid({
-  spaces,
+  profiles,
   onChanged
 }: {
-  spaces: SpaceSummary[];
+  profiles: ProfileSummary[];
   onChanged: () => void;
 }): React.JSX.Element {
-  const [menu, setMenu] = useState<{ x: number; y: number; space: SpaceSummary } | null>(null);
   const [dialog, setDialog] = useState<Dialog>(null);
+  const [drag, setDrag] = useState<SpaceDrag | null>(null);
 
-  const openSpace = (id: string): void => {
-    void invoke('spaces:open', id).then(onChanged);
+  const close = (): void => setDialog(null);
+
+  /** Dismiss the dialog that asked for it, then show the result. */
+  const apply = (action: Promise<unknown>): void => {
+    close();
+    void action.then(onChanged);
   };
 
-  const menuItems = (space: SpaceSummary, index: number): MenuItem[] => [
-    { label: 'Open', onClick: () => openSpace(space.id) },
-    { label: 'Edit space', onClick: () => setDialog({ kind: 'edit', space }) },
-    { label: 'Delete', danger: true, onClick: () => setDialog({ kind: 'delete', space }) },
-    {
-      label: 'Move up',
-      disabled: index === 0,
-      onClick: () => void invoke('spaces:move', space.id, -1).then(onChanged)
-    },
-    {
-      label: 'Move down',
-      disabled: index === spaces.length - 1,
-      onClick: () => void invoke('spaces:move', space.id, 1).then(onChanged)
-    }
-  ];
-
   return (
-    <div className="space-grid">
-      {spaces.map((space, index) => (
-        <button
-          key={space.id}
-          className="space-tile"
-          // The tile wears its space's color, so the grid reads as the set of
-          // spaces rather than a wall of identical panels.
-          style={washVars(space.colorScheme)}
-          onClick={() => openSpace(space.id)}
-          onContextMenu={(e) => {
-            e.preventDefault();
-            setMenu({ x: e.clientX, y: e.clientY, space });
+    <div className="profiles-view">
+      {profiles.map((profile, index) => (
+        <ProfileGroup
+          key={profile.id}
+          profile={profile}
+          divided={index > 0}
+          named={profiles.length > 1}
+          removable={profile.spaces.length === 0 && profiles.length > 1}
+          drag={drag}
+          onOpen={(space) => void invoke('spaces:open', space.id).then(onChanged)}
+          onEdit={(space) => setDialog({ kind: 'edit', space })}
+          onDelete={(space) => setDialog({ kind: 'delete', space })}
+          onMove={(space, delta) => void invoke('spaces:move', space.id, delta).then(onChanged)}
+          onNewSpace={() => setDialog({ kind: 'newSpace', profile })}
+          onRename={() => setDialog({ kind: 'renameProfile', profile })}
+          onRemove={() => setDialog({ kind: 'removeProfile', profile })}
+          onDrag={(space) => setDrag(space ? { space, over: '' } : null)}
+          onDragOverProfile={(over) => setDrag((d) => (d ? { ...d, over } : null))}
+          onDropSpace={(space) => {
+            setDrag(null);
+            setDialog({ kind: 'duplicate', space, profile });
           }}
-        >
-          <div className="space-tile-art">
-            {space.icons.length > 0 ? (
-              <div className={`tile-montage count-${Math.min(space.icons.length, 4)}`}>
-                {space.icons.slice(0, 4).map((src, i) => (
-                  <img key={i} src={src} alt="" draggable={false} />
-                ))}
-              </div>
-            ) : (
-              <span className="tile-initial">{initialOf(space.name)}</span>
-            )}
-            {space.open && <span className="tile-open-dot" title="Open" />}
-          </div>
-          <span className="space-tile-name">{space.name}</span>
-        </button>
+        />
       ))}
 
-      <button className="space-tile space-tile-new" onClick={() => setDialog({ kind: 'new' })}>
-        <div className="space-tile-art">
-          <span className="tile-plus">＋</span>
-        </div>
-        <span className="space-tile-name">New space</span>
+      <button className="button profile-add" onClick={() => setDialog({ kind: 'newProfile' })}>
+        <PlusIcon />
+        Add profile
       </button>
 
-      {menu && (
-        <ContextMenu
-          x={menu.x}
-          y={menu.y}
-          items={menuItems(
-            menu.space,
-            spaces.findIndex((s) => s.id === menu.space.id)
-          )}
-          onClose={() => setMenu(null)}
-        />
-      )}
-
-      {dialog?.kind === 'new' && (
+      {dialog?.kind === 'newSpace' && (
         <NamePrompt
           title="New space"
           initial=""
           submitLabel="Create"
-          onSubmit={(name) => {
-            setDialog(null);
-            void invoke('spaces:create', name).then(onChanged);
-          }}
-          onCancel={() => setDialog(null)}
+          onSubmit={(name) => apply(invoke('spaces:create', name, dialog.profile.id))}
+          onCancel={close}
         />
       )}
       {dialog?.kind === 'edit' && (
         <EditSpaceDialog
           name={dialog.space.name}
           colorScheme={dialog.space.colorScheme}
-          onSubmit={(name, colorScheme) => {
-            setDialog(null);
-            void invoke('spaces:update', dialog.space.id, { name, colorScheme }).then(onChanged);
-          }}
-          onCancel={() => setDialog(null)}
+          onSubmit={(name, colorScheme) =>
+            apply(invoke('spaces:update', dialog.space.id, { name, colorScheme }))
+          }
+          onCancel={close}
         />
       )}
       {dialog?.kind === 'delete' && (
         <Confirm
           title="Delete space"
-          message={`Delete "${dialog.space.name}"? Its pinned links and session are removed. Browsing data (cookies, logins) is shared and stays.`}
+          message={`Delete "${dialog.space.name}"? Its pinned links and session are removed. Its profile's browsing data (cookies, logins) is shared with the profile's other spaces and stays.`}
           confirmLabel="Delete"
-          onConfirm={() => {
-            setDialog(null);
-            void invoke('spaces:delete', dialog.space.id).then(onChanged);
-          }}
-          onCancel={() => setDialog(null)}
+          onConfirm={() => apply(invoke('spaces:delete', dialog.space.id))}
+          onCancel={close}
+        />
+      )}
+      {dialog?.kind === 'newProfile' && (
+        <NamePrompt
+          title="New profile"
+          initial=""
+          submitLabel="Create"
+          onSubmit={(name) => apply(invoke('profiles:create', name))}
+          onCancel={close}
+        />
+      )}
+      {dialog?.kind === 'renameProfile' && (
+        <NamePrompt
+          title="Rename profile"
+          initial={dialog.profile.name}
+          submitLabel="Rename"
+          onSubmit={(name) => apply(invoke('profiles:rename', dialog.profile.id, name))}
+          onCancel={close}
+        />
+      )}
+      {dialog?.kind === 'removeProfile' && (
+        <Confirm
+          title="Remove profile"
+          message={`Remove "${dialog.profile.name}"? Its browsing data — cookies, logins, and cache — is deleted. Other profiles keep theirs.`}
+          confirmLabel="Remove"
+          onConfirm={() => apply(invoke('profiles:remove', dialog.profile.id))}
+          onCancel={close}
+        />
+      )}
+      {dialog?.kind === 'duplicate' && (
+        <Confirm
+          title="Duplicate space"
+          message={`Copy "${dialog.space.name}" into "${dialog.profile.name}"? The copy keeps the same pinned links, but browses with that profile's logins — so it starts signed out.`}
+          confirmLabel="Duplicate"
+          onConfirm={() => apply(invoke('spaces:duplicate', dialog.space.id, dialog.profile.id))}
+          onCancel={close}
         />
       )}
     </div>
   );
-}
-
-function initialOf(name: string): string {
-  const trimmed = name.trim();
-  return trimmed.length === 0 ? '?' : trimmed[0].toUpperCase();
 }

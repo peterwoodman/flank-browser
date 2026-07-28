@@ -1,8 +1,9 @@
-import { app } from 'electron';
+import { app, Session } from 'electron';
 import { Space } from '@shared/types';
 import { SpaceWindowController } from './space-window';
 import { spacesStore } from './stores/spaces-store';
 import { settingsStore } from './stores/settings-store';
+import { readySessionForSpace } from './profiles';
 import { getManagerWindow, notifyManager, openManager } from './manager-window';
 import { log, fireAndForget } from './log';
 
@@ -36,29 +37,42 @@ export function getController(spaceId: string): SpaceWindowController | undefine
   return controllers.get(spaceId);
 }
 
-export function openSpace(spaceId: string): void {
-  const existing = controllers.get(spaceId);
-  if (existing) {
-    existing.focus();
-  } else {
-    const space = spacesStore.byId(spaceId);
-    if (!space) {
-      log(`openSpace: no space with id ${spaceId}`);
-      return;
-    }
-
-    const controller = new SpaceWindowController(space);
-    controllers.set(space.id, controller);
-    controller.onClosed = () => onControllerClosed(space);
-    rememberOpenSpaces();
-    notifyManager('manager:refresh');
+export async function openSpace(spaceId: string): Promise<void> {
+  const space = spacesStore.byId(spaceId);
+  if (!space) {
+    log(`openSpace: no space with id ${spaceId}`);
+    return;
   }
 
   // The Manager stays open behind the spaces as Flank's hub, minimized out of
   // the way. Keeping it a real window is what makes leaving Flank predictable:
   // the desktop's "close all windows" reaches it like any other window, and the
-  // window list emptying always means "exit", never "show me the hub".
+  // window list emptying always means "exit", never "show me the hub". It gets
+  // out of the way before the profile is prepared below, so clicking a tile
+  // still responds at once.
   openManager('minimized');
+
+  const existing = controllers.get(spaceId);
+  if (existing) {
+    existing.focus();
+    return;
+  }
+
+  // The space's profile partition is created on demand, and its extensions have
+  // to be in it before the first page loads.
+  const ses = await readySessionForSpace(space);
+  // That await leaves room for a second open of the same space to land first.
+  const raced = controllers.get(spaceId);
+  if (raced) raced.focus();
+  else createWindow(space, ses);
+}
+
+function createWindow(space: Space, ses: Session): void {
+  const controller = new SpaceWindowController(space, ses);
+  controllers.set(space.id, controller);
+  controller.onClosed = () => onControllerClosed(space);
+  rememberOpenSpaces();
+  notifyManager('manager:refresh');
 }
 
 function onControllerClosed(space: Space): void {
@@ -121,12 +135,14 @@ export function refreshAllSpaces(): void {
   for (const controller of controllers.values()) controller.pushState();
 }
 
-/** The focused space window, or any open one (extension-initiated tabs). */
-export function focusedController(): SpaceWindowController | undefined {
-  for (const controller of controllers.values()) {
-    if (controller.win.isFocused()) return controller;
-  }
-  return controllers.values().next().value;
+/**
+ * Where an extension-initiated tab goes: the focused window of that
+ * extension's own profile, or any window of it. An extension is loaded per
+ * profile, so its tab must not land in a window browsing as another one.
+ */
+export function focusedController(ses: Session): SpaceWindowController | undefined {
+  const inProfile = [...controllers.values()].filter((c) => c.session === ses);
+  return inProfile.find((c) => c.win.isFocused()) ?? inProfile[0];
 }
 
 /** The controller whose pages include this webContents (permissions, downloads). */

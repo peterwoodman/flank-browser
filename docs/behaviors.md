@@ -68,6 +68,8 @@ with no reload.
   period (`backgroundTabMinutes` in settings, default 30). Reopening an
   evicted link reloads the page.
 - Each tab has its own trail.
+- A page moved in from the right takes over the tab it replaces, so it resumes
+  on that link like any other (see Sections lifecycle).
 - Searches from the home view share a single ad-hoc tab; a new search
   replaces its page.
 - This applies to the **left** section only. The right view is one
@@ -80,14 +82,23 @@ with no reload.
 - The window always has a left section. The right section exists only when
   opened (by routing above or the toolbar button).
 - **Close view** (right toolbar) closes the right section; the left expands.
-- **Move page to left** (right toolbar) navigates the left view to the right
-  view's current page, then closes the right section. The left view keeps
-  its existing trail with the promoted URL appended on top (a normal
-  in-place navigation of whatever the left is currently showing).
+- **Move page to left** (right toolbar) moves the right view's page into the
+  left section, then closes the right section. The page itself moves rather
+  than being loaded again on the left, so it keeps its scroll position,
+  playing media, typed-in form state, and its own engine back history. From
+  there it follows the left section's rules, so a link that leaves it opens
+  the right section again.
+- A moved page takes over the tab of the page it replaces: move onto a home
+  link's page and the moved page *becomes* that link's tab, so going Home and
+  activating the link again resumes it, trail and all. The page it replaced is
+  unloaded, and stays reachable through the trail beneath the moved page.
+  Moving onto the left's home view replaces nothing and makes the moved page
+  the ad-hoc page. Other background tabs are untouched.
 - Closing the right section keeps its trail in the session file, so
   reopening the space later can restore it — but opening a *fresh* right
   view via "Open right view" starts at home with the previous right trail
-  still intact.
+  still intact. After a move to the left there is nothing to keep: the trail
+  went with the page.
 - A hidden or closed view must actually stop: closing the right section
   unloads its page (navigates to a blank page internally, keeping the
   trail), otherwise media would keep playing invisibly.
@@ -107,6 +118,12 @@ The trail replaces conventional back/forward UI and browser history.
   "Clear trail".
 - Trails persist across restarts in the session file, capped at 500 entries
   per view (oldest dropped).
+- A page moved between sections brings its trail with it, stacked on top of
+  the trail of the page it replaced, so the receiving section's history reads
+  as one continuation. Its engine history cannot be joined on in the same way
+  — replaying entries into a live page would mean reloading it, which is the
+  point of moving the page rather than its URL — so **Back** goes on walking
+  the moved page's own history.
 - `Alt+Left` walks down the trail (to the older entry below the current one).
 - The toolbar **Back** button is different: it steps through the browser
   engine's own history, which is the only way to reach SPA route changes
@@ -154,6 +171,33 @@ The trail replaces conventional back/forward UI and browser history.
 
 > **Linux:** launch-at-login is an XDG autostart `.desktop` entry the app
 > writes itself; Windows and macOS use the OS login-items API.
+
+## Profiles
+
+A profile is a browsing identity. Every space belongs to exactly one, and that
+profile's browser profile — cookies, logins, storage, cache — is what its pages
+browse with, so the spaces in a profile share a signed-in state and see nothing
+of any other profile's. It is the same separation two people using one machine
+would get from two browser profiles, without a second app or a second data
+folder.
+
+- There is always at least one profile; a new install and an upgrade from a
+  version without them both start with one named "Default", holding every
+  existing space and keeping the browsing data that was already there.
+- Profiles are created, renamed, and removed in the Manager (`ui.md` → Manager
+  window). Only an empty profile can be removed, and removing it deletes its
+  browsing data.
+- A profile's storage is created the first time one of its spaces opens, so a
+  profile nobody uses costs nothing on disk.
+- **Extensions are app-wide**: one list, loaded into every profile. An
+  extension's own stored state is not — logins and vaults live in the profile,
+  so a password manager is signed in per profile, like it would be in any
+  browser's profiles.
+- Permission answers, the search engine, and the rest of settings are app-wide.
+- `--space <name or id>` searches every profile. Two profiles may hold spaces of
+  the same name (that is the point of copying a space into another profile), and
+  a name that matches more than once resolves to the first profile holding it —
+  the id is unambiguous where it matters.
 
 ## Search engine
 
@@ -220,12 +264,11 @@ Both free-form entry points show an autocomplete dropdown while typing:
 
 ## Extensions
 
-- Essentials only, loaded as unpacked Chromium extensions into the shared
-  browser profile.
+- Essentials only, loaded as unpacked Chromium extensions.
 - Managed in the Manager window (add folder — must contain `manifest.json`;
-  enable/disable; remove). The installed set is reconciled with settings
-  **once per app session**, on the first web view that initializes —
-  extension changes take effect after an app restart.
+  enable/disable; remove). The list is app-wide and every profile gets all of
+  it, loaded into that profile **once**, when its first space opens — extension
+  changes take effect after an app restart.
 - **Import from another browser** offers the extensions already installed in
   any Chromium browser on the machine (Chrome, Edge, Brave, Vivaldi, Chromium,
   and their beta/canary channels). Those browsers keep extensions unpacked on
@@ -254,7 +297,7 @@ Both free-form entry points show an autocomplete dropdown while typing:
 - Each enabled extension gets a toolbar icon per section; clicking it opens
   the extension's popup (`action.default_popup`, MV2's `browser_action` also
   recognized) anchored to that button — beside it, or below it when the
-  toolbar is on top. The popup is a browser view on the shared profile, so
+  toolbar is on top. The popup is a browser view on the space's profile, so
   extension login state carries over. The popup loads
   on open and unloads on close, like a browser toolbar popup; `window.close`
   and link-outs from the popup are honored. Extensions without a popup fall
@@ -279,9 +322,9 @@ download UI. No custom download manager.
 
 - Permission prompts (camera, mic, location, notifications, clipboard,
   sensors, autoplay) surface through a simple allow/deny dialog naming the
-  requesting host; the choice is remembered per origin in settings, since the
-  engine keeps no such memory of its own. Prompts are serialized — one dialog at
-  a time.
+  requesting host; the choice is remembered per origin in settings — app-wide,
+  not per profile — since the engine keeps no such memory of its own. Prompts
+  are serialized — one dialog at a time.
 - Web APIs generally test a permission silently before asking for it, and that
   test is answered from the same remembered decisions: undecided reads as no, so
   the page goes on to ask and the dialog appears. This is what keeps
