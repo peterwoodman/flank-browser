@@ -117,7 +117,7 @@ The trail replaces conventional back/forward UI and browser history.
 - Entries are individually deletable from the trail flyout; there is also
   "Clear trail".
 - Trails persist across restarts in the session file, capped at 500 entries
-  per view (oldest dropped).
+  per view (oldest dropped). A 1-shot window's page keeps no trail at all.
 - A page moved between sections brings its trail with it, stacked on top of
   the trail of the page it replaced, so the receiving section's history reads
   as one continuation. Its engine history cannot be joined on in the same way
@@ -129,6 +129,28 @@ The trail replaces conventional back/forward UI and browser history.
   engine's own history, which is the only way to reach SPA route changes
   (pushState) — the trail records those as an in-place update of the newest
   entry. The button shows only while the engine can go back.
+
+## 1-shot windows
+
+A 1-shot window is a single free-browsing page, opened from a space window's
+1-shot button (docs/ui.md → 1-shot window). Its rules are the ones the space's
+*right* view already follows, minus everything a space provides:
+
+- It browses in the **profile of the window that opened it** — the errand runs as
+  the identity you were already browsing as, not a new one. There is no
+  ambiguity to resolve: the button reports which window it was pressed in.
+- **Every navigation lands in the same page.** In-page links, `target=_blank`,
+  plain `window.open`, an extension's `chrome.tabs.create`, shift+click, and
+  links out of a popup all load here, because there is no other section to route
+  to. Sized popups still become real popup windows, so sign-in flows work.
+- **Nothing is recorded.** Visits are not written to a trail (so `Alt+Left` does
+  nothing), and no session file is written. The engine's own back stack still
+  works, and the toolbar's **Back** button walks it.
+- **Nothing is restored.** A 1-shot window is not remembered in `openSpaces`, has
+  no saved bounds, and never reopens on launch. Closing it destroys its page.
+- It is independent of the window that opened it: closing that space window
+  leaves the 1-shot window alone, and closing the 1-shot window changes nothing
+  about the space. Like any window, the app exits when the last one closes.
 
 ## Session restore
 

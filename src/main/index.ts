@@ -68,18 +68,18 @@ if (!app.requestSingleInstanceLock({ spaceArg: parseSpaceArg(process.argv) })) {
     // These all install per browsing session, as each profile's partition is
     // created; only the app-wide policy is decided here.
     initExtensions({
-      openTab: (url, ses) => windowManager.focusedController(ses)?.openTabForExtension(url) ?? null
+      openTab: (url, ses) => windowManager.focusedWindow(ses)?.openTabForExtension(url) ?? null
     });
     installPermissionHandler((contents, prompt) => {
-      const c = windowManager.controllerForWebContents(contents.id);
-      return c ? c.showPermissionPrompt(prompt) : Promise.resolve(false);
+      const w = windowManager.windowForWebContents(contents.id);
+      return w ? w.showPermissionPrompt(prompt) : Promise.resolve(false);
     });
     installDisplayMediaHandler((contents, prompt) => {
-      const c = windowManager.controllerForWebContents(contents.id);
-      return c ? c.showScreenSharePrompt(prompt) : Promise.resolve(null);
+      const w = windowManager.windowForWebContents(contents.id);
+      return w ? w.showScreenSharePrompt(prompt) : Promise.resolve(null);
     });
     installDownloadHandler((contents, notice) => {
-      windowManager.controllerForWebContents(contents.id)?.notifyChrome('space:download', notice);
+      windowManager.windowForWebContents(contents.id)?.notifyChrome('space:download', notice);
     });
     if (process.platform === 'linux') log(`Linux session: ${describeLinuxSession()}`);
     log('App started');

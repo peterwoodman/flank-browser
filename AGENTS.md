@@ -21,7 +21,8 @@ implementation detail belongs in `docs/architecture.md`.
 
 - `docs/overview.md` — elevator pitch and doc index
 - `docs/architecture.md` — stack, process model, components, Electron constraints
-- `docs/ui.md` — launch/activation, manager window, space window, toolbar, flyouts
+- `docs/ui.md` — launch/activation, manager window, space window, 1-shot window,
+ toolbar, flyouts
 - `docs/data-model.md` — JSON schemas and storage layout
 - `docs/behaviors.md` — navigation routing, tabs, trail, sessions, extensions
 - `docs/roadmap.md` — out-of-scope list and future directions

@@ -66,6 +66,18 @@ export interface SpaceStateDto {
   toolbarPosition: ToolbarPosition;
 }
 
+/**
+ * A 1-shot window's chrome state (docs/ui.md → 1-shot window). One free
+ * browsing pane and nothing of a space: no links, no split, no trail.
+ */
+export interface OneShotStateDto {
+  windowId: string;
+  /** The single pane, reported under `left` so one web chrome serves both. */
+  pane: SectionDto;
+  extensions: ExtensionButtonDto[];
+  toolbarPosition: ToolbarPosition;
+}
+
 /** One row in a search/address suggestion dropdown. */
 export interface SuggestionDto {
   text: string;

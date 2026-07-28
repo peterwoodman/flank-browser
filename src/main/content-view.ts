@@ -55,6 +55,11 @@ export class ContentView {
    * manifest background feed that link's tile icon and launch splash.
    */
   linkId: string | null = null;
+  /**
+   * Whether visits are written to the trail. A 1-shot window's page keeps no
+   * history of where it has been (docs/behaviors.md → 1-shot windows).
+   */
+  recordsTrail = true;
 
   trail: TrailEntry[] = []; // newest first
   private trailPosition = 0; // index of the currently displayed entry
@@ -173,7 +178,7 @@ export class ContentView {
         fireAndForget('launch metadata', this.updateLaunchMetadata(url));
       }
 
-      if (this.suppressTrailAppend) {
+      if (this.suppressTrailAppend || !this.recordsTrail) {
         this.suppressTrailAppend = false;
         this.onChanged();
         return;

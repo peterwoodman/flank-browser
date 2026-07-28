@@ -8,8 +8,19 @@ import { toUrl } from '../navigation-input';
 import { buildSuggestions } from '../suggestions';
 import { openManager } from '../manager-window';
 import { newId } from '../ids';
+import { ChromeWindow } from '../chrome-window';
 import { SpaceWindowController } from '../space-window';
 
+/**
+ * Channels every browsing window answers — layout, the address bar, find,
+ * extensions, prompts — address their window by the id its chrome was given,
+ * which is the space id for a space window and its own id for a 1-shot one.
+ */
+function chromeWindow(windowId: string): ChromeWindow | undefined {
+  return windowManager.getWindow(String(windowId));
+}
+
+/** Channels that only make sense where there is a space behind the window. */
 function controller(spaceId: string): SpaceWindowController | undefined {
   return windowManager.getController(String(spaceId));
 }
@@ -19,17 +30,23 @@ function sideOf(value: unknown): Side {
 }
 
 export function registerSpaceIpc(): void {
-  ipcMain.handle('flank:space:init', (_e, spaceId: string) => {
-    return controller(spaceId)?.buildState() ?? null;
+  ipcMain.handle('flank:space:init', (_e, windowId: string) => {
+    return chromeWindow(windowId)?.buildState() ?? null;
   });
 
   // Layout/overlay are high-frequency fire-and-forget messages.
-  ipcMain.on('flank:space:layout', (_e, spaceId: string, side: unknown, rect: Rect | null) => {
-    controller(spaceId)?.setLayout(sideOf(side), rect);
+  ipcMain.on('flank:space:layout', (_e, windowId: string, side: unknown, rect: Rect | null) => {
+    chromeWindow(windowId)?.setLayout(sideOf(side), rect);
   });
 
-  ipcMain.on('flank:space:overlay', (_e, spaceId: string, active: boolean) => {
-    controller(spaceId)?.setOverlay(!!active);
+  ipcMain.on('flank:space:overlay', (_e, windowId: string, active: boolean) => {
+    chromeWindow(windowId)?.setOverlay(!!active);
+  });
+
+  /** The sidebar's 1-shot button, in the profile of the window that asked. */
+  ipcMain.handle('flank:oneshot:open', (_e, windowId: string) => {
+    const from = chromeWindow(windowId);
+    if (from) windowManager.openOneShot(from.session);
   });
 
   // --- Section actions ---
@@ -48,14 +65,14 @@ export function registerSpaceIpc(): void {
   // Address bar: navigates this view in place (same URL-vs-search rules).
   ipcMain.handle(
     'flank:section:addressSubmit',
-    (_e, spaceId: string, side: unknown, text: string, directUrl: string | null) => {
+    (_e, windowId: string, side: unknown, text: string, directUrl: string | null) => {
       const url = directUrl ?? toUrl(String(text), settingsStore.current.searchTemplate);
-      const c = controller(spaceId);
-      if (!c) return;
+      const w = chromeWindow(windowId);
+      if (!w) return;
       const s = sideOf(side);
-      const view = c.sectionView(s);
+      const view = w.sectionView(s);
       if (view) view.navigate(url);
-      else c.navigateAdhoc(s, url);
+      else controller(windowId)?.navigateAdhoc(s, url);
     }
   );
 
@@ -67,12 +84,12 @@ export function registerSpaceIpc(): void {
     controller(spaceId)?.returnFromHome(sideOf(side));
   });
 
-  ipcMain.handle('flank:section:refresh', (_e, spaceId: string, side: unknown) => {
-    controller(spaceId)?.refresh(sideOf(side));
+  ipcMain.handle('flank:section:refresh', (_e, windowId: string, side: unknown) => {
+    chromeWindow(windowId)?.refresh(sideOf(side));
   });
 
-  ipcMain.handle('flank:section:back', (_e, spaceId: string, side: unknown) => {
-    controller(spaceId)?.goBack(sideOf(side));
+  ipcMain.handle('flank:section:back', (_e, windowId: string, side: unknown) => {
+    chromeWindow(windowId)?.goBack(sideOf(side));
   });
 
   ipcMain.handle('flank:section:openRight', (_e, spaceId: string) => {
@@ -117,16 +134,18 @@ export function registerSpaceIpc(): void {
     'flank:suggest:query',
     async (
       _e,
-      spaceId: string,
+      windowId: string,
       side: unknown,
       text: string,
       includeTrail: boolean
     ): Promise<SuggestionDto[]> => {
-      const space = spacesStore.byId(String(spaceId));
-      const c = controller(spaceId);
-      const trail = includeTrail ? (c?.sectionView(sideOf(side))?.trail ?? null) : null;
+      // A 1-shot window has no space behind it and no trail: remote
+      // suggestions and plain search are all its address bar offers.
+      const space = spacesStore.byId(String(windowId));
+      const w = chromeWindow(windowId);
+      const trail = includeTrail ? (w?.sectionView(sideOf(side))?.trail ?? null) : null;
       return buildSuggestions(
-        `${spaceId}:${String(side)}:${includeTrail ? 'addr' : 'home'}`,
+        `${windowId}:${String(side)}:${includeTrail ? 'addr' : 'home'}`,
         String(text),
         space ? [...space.links].sort((a, b) => a.order - b.order) : null,
         trail
@@ -205,40 +224,40 @@ export function registerSpaceIpc(): void {
 
   ipcMain.on(
     'flank:find:query',
-    (_e, spaceId: string, side: unknown, text: string, forward: boolean, findNext: boolean) => {
-      controller(spaceId)?.find(sideOf(side), String(text), !!forward, !!findNext);
+    (_e, windowId: string, side: unknown, text: string, forward: boolean, findNext: boolean) => {
+      chromeWindow(windowId)?.find(sideOf(side), String(text), !!forward, !!findNext);
     }
   );
 
-  ipcMain.on('flank:find:stop', (_e, spaceId: string, side: unknown) => {
-    controller(spaceId)?.stopFind(sideOf(side));
+  ipcMain.on('flank:find:stop', (_e, windowId: string, side: unknown) => {
+    chromeWindow(windowId)?.stopFind(sideOf(side));
   });
 
   // --- Extensions ---
 
   ipcMain.handle(
     'flank:ext:activate',
-    (_e, spaceId: string, side: unknown, extensionId: string, anchor: Rect) => {
-      controller(spaceId)?.activateExtension(sideOf(side), String(extensionId), anchor);
+    (_e, windowId: string, side: unknown, extensionId: string, anchor: Rect) => {
+      chromeWindow(windowId)?.activateExtension(sideOf(side), String(extensionId), anchor);
     }
   );
 
   // --- Permissions ---
 
-  ipcMain.on('flank:permission:respond', (_e, spaceId: string, id: string, allow: boolean) => {
-    controller(spaceId)?.resolvePermission(String(id), !!allow);
+  ipcMain.on('flank:permission:respond', (_e, windowId: string, id: string, allow: boolean) => {
+    chromeWindow(windowId)?.resolvePermission(String(id), !!allow);
   });
 
-  ipcMain.on('flank:screenShare:respond', (_e, spaceId: string, choice: string | null) => {
-    controller(spaceId)?.resolveScreenShare(choice == null ? null : String(choice));
+  ipcMain.on('flank:screenShare:respond', (_e, windowId: string, choice: string | null) => {
+    chromeWindow(windowId)?.resolveScreenShare(choice == null ? null : String(choice));
   });
 
   // --- Adaptive colors: the chrome's resolved theme tints the native caption buttons ---
 
   ipcMain.on(
     'flank:space:chromeColors',
-    (_e, spaceId: string, colors: { bg: string; fg: string } | null) => {
-      controller(spaceId)?.setChromeColors(colors);
+    (_e, windowId: string, colors: { bg: string; fg: string } | null) => {
+      chromeWindow(windowId)?.setChromeColors(colors);
     }
   );
 }

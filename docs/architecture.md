@@ -65,7 +65,7 @@ the Manager window as the launcher. Each space window is an Electron
 
 ## Window/view model
 
-Each space window is a `BaseWindow` whose content view stacks:
+Each browsing window is a `BaseWindow` whose content view stacks:
 
 1. **Chrome view** (bottom) — one full-window `WebContentsView` running the
    React app (title bar, toolbars, home views, address bars, flyouts, find
@@ -74,6 +74,19 @@ Each space window is a `BaseWindow` whose content view stacks:
 2. **Content views** (top) — the pooled page views, positioned by the main
    process into "holes" the chrome reports over IPC (each `WebChrome`
    component measures its content area and sends the rect).
+
+There are two kinds of browsing window — a space window and a 1-shot window —
+and that stack is all they have in common with each other. The shell holding it
+is therefore a base class (`ChromeWindow`): the window and its transparent chrome
+view, content-view attachment and the layout holes, the overlay z-order dance,
+permission and screen-share dialogs, popup adoption, the content context menu,
+extension popups, caption tinting, and batched state pushes. What the window
+*holds* is the subclass's: `SpaceWindowController` has two sections and a space's
+rules, `OneShotWindowController` has one page and none. A window answers IPC
+under an id its chrome carries in every message — a space id for a space window,
+its own for a 1-shot one — so every channel about a *page* (layout, the address
+bar, find, extensions, prompts) is shared, and only the channels about a *space*
+(home links, split, trail, pin) resolve to a space controller.
 
 A content view is a page, not a place. The two rules that differ by side —
 whether a user navigation leaving the page routes to the other section, and
@@ -92,7 +105,7 @@ changed explicitly — the attach path it normally hears about does not run.
 Flyouts and overlays over web content invert the stack: the chrome view is
 raised to the top (transparent, so only the flyout paints), any outside
 click light-dismisses in the chrome, and the chrome is lowered again. This
-z-order dance is isolated in the space window controller (`setOverlay`).
+z-order dance is isolated in the window shell (`setOverlay`).
 Transparency must hold through the whole stack: `setBackgroundColor('#00000000')`
 is re-applied after every chrome load (loads reset it to the engine default),
 and no CSS ancestor of a content hole may paint a background — a child's
@@ -125,15 +138,18 @@ inherited.
 
 ```
 main process
-├── window-manager        – open space windows, openSpaces memory, burst-close
+├── window-manager        – open windows by id, openSpaces memory, burst-close
 ├── browser-session       – one partition per profile + per-session preparers
 ├── profiles              – space → profile session, removed-profile cleanup
 ├── stores/               – settings/spaces/sessions over atomic JsonFile
-├── space-window          – BaseWindow + chrome view + sections, layout, IPC
+├── chrome-window         – BaseWindow + chrome view: layout holes, overlay
+│                           z-order, prompts, popups, context menu, captions
+├── space-window          – a space's two sections, routing, pin, session
 │   └── section (×2)      – tab pool (keep-alive per home link + ad-hoc view),
 │                           eviction timer, session capture/restore
 │       └── content-view  – one WebContentsView: navigation routing, trail,
 │                           colors, load/crash state, favicon capture, zoom
+├── one-shot-window       – a single free-browsing page, nothing remembered
 ├── manager-window        – launcher window (BrowserWindow, same React app)
 ├── extensions            – electron-chrome-extensions per profile + buttons
 ├── favicons              – live capture + fallback fetch icon cache
@@ -146,7 +162,8 @@ main process
 
 - **`chrome.ts`** — the IPC bridge for Flank's own UI (`window.flank`:
   invoke/send/on, all channels namespaced `flank:`). The chrome renderer is
-  a pure view of main-process state snapshots (`SpaceStateDto`).
+  a pure view of main-process state snapshots (`SpaceStateDto`,
+  `OneShotStateDto`).
 - **`content.ts`** — page instrumentation: shift+click interception,
   `Alt+Left`, `Shift+←/→` split
   nudges, form-submit reporting, the adaptive color reporter

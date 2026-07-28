@@ -10,12 +10,12 @@ import { CloseIcon } from '../components/Icons';
  * (docs/ui.md → Trail flyout).
  */
 export function TrailFlyout({
-  spaceId,
+  windowId,
   side,
   trail,
   onClose
 }: {
-  spaceId: string;
+  windowId: string;
   side: 'left' | 'right';
   trail: TrailEntry[];
   onClose: () => void;
@@ -50,7 +50,7 @@ export function TrailFlyout({
                 title={entry.url}
                 onClick={() => {
                   onClose();
-                  void invoke('trail:navigate', spaceId, side, index);
+                  void invoke('trail:navigate', windowId, side, index);
                 }}
               >
                 <span className="trail-title">{entry.title || entry.url}</span>
@@ -61,7 +61,7 @@ export function TrailFlyout({
               <button
                 className="icon-button trail-delete"
                 title="Remove entry"
-                onClick={() => void invoke('trail:delete', spaceId, side, index)}
+                onClick={() => void invoke('trail:delete', windowId, side, index)}
               >
                 <CloseIcon />
               </button>
@@ -75,7 +75,7 @@ export function TrailFlyout({
               className="flyout-item"
               onClick={() => {
                 onClose();
-                void invoke('trail:clear', spaceId, side);
+                void invoke('trail:clear', windowId, side);
               }}
             >
               <span className="flyout-item-text">Clear trail</span>

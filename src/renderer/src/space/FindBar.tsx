@@ -9,11 +9,11 @@ import { CloseIcon } from '../components/Icons';
  * through matches, Esc closes and clears highlights.
  */
 export function FindBar({
-  spaceId,
+  windowId,
   side,
   onClose
 }: {
-  spaceId: string;
+  windowId: string;
   side: Side;
   onClose: () => void;
 }): React.JSX.Element {
@@ -31,18 +31,18 @@ export function FindBar({
   }, [side]);
 
   const close = (): void => {
-    send('find:stop', spaceId, side);
+    send('find:stop', windowId, side);
     onClose();
   };
 
   const query = (value: string): void => {
     setText(value);
-    if (value) send('find:query', spaceId, side, value, true, false);
+    if (value) send('find:query', windowId, side, value, true, false);
     else setResult(null);
   };
 
   const step = (forward: boolean): void => {
-    if (text) send('find:query', spaceId, side, text, forward, true);
+    if (text) send('find:query', windowId, side, text, forward, true);
   };
 
   return (

@@ -10,6 +10,7 @@ import {
   CloseIcon,
   GridIcon,
   HomeIcon,
+  OneShotIcon,
   OpenRightIcon,
   PinIcon,
   PromoteIcon,
@@ -19,6 +20,13 @@ import {
 } from '../components/Icons';
 
 /**
+ * Which window this chrome is a pane of. A space window's pane can reach the
+ * things a space has — home, the other section, pinning, the Manager — where a
+ * 1-shot window's pane is only ever the page it is on (docs/ui.md).
+ */
+export type WebChromeKind = 'space' | 'oneshot';
+
+/**
  * A web view's chrome (docs/ui.md → Web view): the icon toolbar (down the
  * section's left edge, or across its top — a setting), the contextual address
  * bar, and the content hole the browser view is positioned into by the main
@@ -26,14 +34,16 @@ import {
  * hidden.
  */
 export function WebChrome({
-  spaceId,
+  windowId,
+  kind = 'space',
   section,
   rightOpen,
   extensions,
   toolbarPosition,
   layoutKey
 }: {
-  spaceId: string;
+  windowId: string;
+  kind?: WebChromeKind;
   section: SectionDto;
   rightOpen: boolean;
   extensions: ExtensionButtonDto[];
@@ -41,6 +51,7 @@ export function WebChrome({
   layoutKey: string;
 }): React.JSX.Element {
   const side = section.side;
+  const inSpace = kind === 'space';
   const holeRef = useRef<HTMLDivElement>(null);
   const [trailOpen, setTrailOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
@@ -60,7 +71,7 @@ export function WebChrome({
     if (!el) return;
     const report = (): void => {
       const r = el.getBoundingClientRect();
-      send('space:layout', spaceId, side, {
+      send('space:layout', windowId, side, {
         x: Math.round(r.x),
         y: Math.round(r.y),
         width: Math.round(r.width),
@@ -74,22 +85,22 @@ export function WebChrome({
     return () => {
       ro.disconnect();
       window.removeEventListener('resize', report);
-      send('space:layout', spaceId, side, null);
+      send('space:layout', windowId, side, null);
     };
-  }, [spaceId, side, layoutKey]);
+  }, [windowId, side, layoutKey]);
 
   const addressSubmit = (text: string, suggestion: SuggestionDto | null): void => {
-    void invoke('section:addressSubmit', spaceId, side, text, suggestion?.url ?? null);
+    void invoke('section:addressSubmit', windowId, side, text, suggestion?.url ?? null);
   };
 
   return (
     <div className={toolbarPosition === 'top' ? 'web-chrome toolbar-top' : 'web-chrome'}>
       <div className="toolbar">
-        {side === 'left' && !rightOpen && (
+        {inSpace && side === 'left' && !rightOpen && (
           <button
             className="icon-button"
             title="Open right view"
-            onClick={() => void invoke('section:openRight', spaceId)}
+            onClick={() => void invoke('section:openRight', windowId)}
           >
             <OpenRightIcon />
           </button>
@@ -98,7 +109,7 @@ export function WebChrome({
           <button
             className="icon-button"
             title="Close view"
-            onClick={() => void invoke('section:closeRight', spaceId)}
+            onClick={() => void invoke('section:closeRight', windowId)}
           >
             <CloseIcon />
           </button>
@@ -107,7 +118,7 @@ export function WebChrome({
           <button
             className="icon-button"
             title="Move page to left"
-            onClick={() => void invoke('section:promote', spaceId)}
+            onClick={() => void invoke('section:promote', windowId)}
           >
             <PromoteIcon />
           </button>
@@ -116,22 +127,24 @@ export function WebChrome({
           <button
             className="icon-button"
             title="Back"
-            onClick={() => void invoke('section:back', spaceId, side)}
+            onClick={() => void invoke('section:back', windowId, side)}
           >
             <BackIcon />
           </button>
         )}
-        <button
-          className="icon-button"
-          title="Home"
-          onClick={() => void invoke('section:goHome', spaceId, side)}
-        >
-          <HomeIcon />
-        </button>
+        {inSpace && (
+          <button
+            className="icon-button"
+            title="Home"
+            onClick={() => void invoke('section:goHome', windowId, side)}
+          >
+            <HomeIcon />
+          </button>
+        )}
         <button
           className="icon-button"
           title="Refresh"
-          onClick={() => void invoke('section:refresh', spaceId, side)}
+          onClick={() => void invoke('section:refresh', windowId, side)}
         >
           <RefreshIcon />
         </button>
@@ -148,7 +161,7 @@ export function WebChrome({
             title={ext.name}
             onClick={(e) => {
               const r = e.currentTarget.getBoundingClientRect();
-              void invoke('ext:activate', spaceId, side, ext.id, {
+              void invoke('ext:activate', windowId, side, ext.id, {
                 x: Math.round(r.x),
                 y: Math.round(r.y),
                 width: Math.round(r.width),
@@ -160,14 +173,23 @@ export function WebChrome({
           </button>
         ))}
         <div className="toolbar-spacer" />
-        {side === 'left' && (
-          <button
-            className="icon-button"
-            title="Spaces"
-            onClick={() => void invoke('manager:open')}
-          >
-            <GridIcon />
-          </button>
+        {inSpace && side === 'left' && (
+          <>
+            <button
+              className="icon-button"
+              title="1-shot window"
+              onClick={() => void invoke('oneshot:open', windowId)}
+            >
+              <OneShotIcon />
+            </button>
+            <button
+              className="icon-button"
+              title="Spaces"
+              onClick={() => void invoke('manager:open')}
+            >
+              <GridIcon />
+            </button>
+          </>
         )}
       </div>
 
@@ -175,7 +197,7 @@ export function WebChrome({
         {section.showAddressBar && (
           <div className="topbar">
             <SuggestInput
-              spaceId={spaceId}
+              windowId={windowId}
               side={side}
               includeTrail
               value={section.url}
@@ -183,17 +205,19 @@ export function WebChrome({
               raiseOverlay
               onSubmit={addressSubmit}
             />
-            <button
-              className="icon-button"
-              title="Pin to home"
-              onClick={() => void invoke('section:pin', spaceId, side)}
-            >
-              <PinIcon />
-            </button>
+            {inSpace && (
+              <button
+                className="icon-button"
+                title="Pin to home"
+                onClick={() => void invoke('section:pin', windowId, side)}
+              >
+                <PinIcon />
+              </button>
+            )}
           </div>
         )}
 
-        {findOpen && <FindBar spaceId={spaceId} side={side} onClose={() => setFindOpen(false)} />}
+        {findOpen && <FindBar windowId={windowId} side={side} onClose={() => setFindOpen(false)} />}
 
         <div className="loadbar-lane">{section.loading && <div className="loadbar" />}</div>
 
@@ -212,7 +236,7 @@ export function WebChrome({
               <span>This page crashed.</span>
               <button
                 className="button"
-                onClick={() => void invoke('section:refresh', spaceId, side)}
+                onClick={() => void invoke('section:refresh', windowId, side)}
               >
                 Reload
               </button>
@@ -223,7 +247,7 @@ export function WebChrome({
 
       {trailOpen && (
         <TrailFlyout
-          spaceId={spaceId}
+          windowId={windowId}
           side={side}
           trail={section.trail}
           onClose={() => setTrailOpen(false)}

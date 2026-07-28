@@ -1,26 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { SpaceStateDto, SectionDto } from '@shared/space-types';
 import { invoke, on, send } from '../ipc';
 import { washVars } from '../wash';
-import { OverlayContext, OverlayController } from './overlay';
+import { useOverlayController } from './overlay';
+import { WindowShell } from './WindowShell';
 import { HomeView } from './HomeView';
 import { WebChrome } from './WebChrome';
-import { ScreenShareDialog, ScreenSharePromptDto } from './ScreenShareDialog';
 import { resolveChromeColors } from './colors';
 import './space.css';
-
-interface DownloadNotice {
-  id: string;
-  filename: string;
-  state: 'started' | 'completed' | 'failed';
-}
-
-interface PermissionPromptDto {
-  id: string;
-  origin: string;
-  permission: string;
-  description: string;
-}
 
 /**
  * A space window's chrome: title bar, the two sections (home or web chrome),
@@ -30,19 +17,7 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
   const [state, setState] = useState<SpaceStateDto | null>(null);
   const [liveRatio, setLiveRatio] = useState<number | null>(null);
   const sectionsRef = useRef<HTMLDivElement>(null);
-  const overlayCount = useRef(0);
-
-  const overlay = useMemo<OverlayController>(
-    () => ({
-      acquire: () => {
-        if (++overlayCount.current === 1) send('space:overlay', spaceId, true);
-      },
-      release: () => {
-        if (--overlayCount.current === 0) send('space:overlay', spaceId, false);
-      }
-    }),
-    [spaceId]
-  );
+  const overlay = useOverlayController(spaceId);
 
   useEffect(() => {
     const off = on('space:state', (dto) => setState(dto as SpaceStateDto));
@@ -66,62 +41,6 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
       : '';
     send('space:chromeColors', spaceId, leftColors ? { bg: leftColors.bg, fg: leftColors.fg } : null);
   }, [spaceId, leftColors?.bg, leftColors?.fg, leftColors?.dark]);
-
-  // Download toast (start/done); terminal states linger briefly then clear.
-  const [downloads, setDownloads] = useState<DownloadNotice[]>([]);
-  useEffect(() => {
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    const off = on('space:download', (...args) => {
-      const notice = args[0] as DownloadNotice;
-      setDownloads((prev) => [...prev.filter((d) => d.id !== notice.id), notice]);
-      if (notice.state !== 'started') {
-        timers.push(
-          setTimeout(
-            () => setDownloads((prev) => prev.filter((d) => d.id !== notice.id)),
-            4000
-          )
-        );
-      }
-    });
-    return () => {
-      off();
-      for (const t of timers) clearTimeout(t);
-    };
-  }, []);
-
-  // Permission prompts arrive one at a time (serialized in main); each holds
-  // the overlay so the dialog paints above the page that asked.
-  const [permissionPrompt, setPermissionPrompt] = useState<PermissionPromptDto | null>(null);
-  useEffect(() => {
-    return on('space:permissionPrompt', (...args) => {
-      setPermissionPrompt(args[0] as PermissionPromptDto);
-    });
-  }, []);
-  useEffect(() => {
-    if (!permissionPrompt) return;
-    overlay.acquire();
-    return () => overlay.release();
-  }, [permissionPrompt, overlay]);
-
-  const answerPermission = (allow: boolean): void => {
-    if (!permissionPrompt) return;
-    send('permission:respond', spaceId, permissionPrompt.id, allow);
-    setPermissionPrompt(null);
-  };
-
-  // Screen sharing: main sends the sources it could enumerate (none where the
-  // desktop portal picks) and waits for one answer per request.
-  const [sharePrompt, setSharePrompt] = useState<ScreenSharePromptDto | null>(null);
-  useEffect(() => {
-    return on('space:screenSharePrompt', (...args) => {
-      setSharePrompt(args[0] as ScreenSharePromptDto);
-    });
-  }, []);
-
-  const answerScreenShare = (choice: string | null): void => {
-    send('screenShare:respond', spaceId, choice);
-    setSharePrompt(null);
-  };
 
   // Shift+Left/Right nudge the splitter when the chrome holds focus (the
   // content preload covers the web views). Skipped while editing text or
@@ -180,58 +99,32 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
       ? `${state.name} - ${state.left.pageTitle}`
       : state.name;
 
-  const rootVars = leftColors
-    ? ({ '--chrome-bg': leftColors.bg, '--chrome-fg': leftColors.fg } as React.CSSProperties)
-    : undefined;
-
   return (
-    <OverlayContext.Provider value={overlay}>
-      {/* The space's color scheme feeds the backdrop wash (docs/ui.md). */}
-      <div className="space-root" style={washVars(state.colorScheme)}>
-        <header
-          className={state.left.mode === 'home' ? 'titlebar titlebar-wash' : 'titlebar'}
-          style={rootVars}
-        >
-          <span className="titlebar-title">{title}</span>
-          {downloads.length > 0 && (
-            <span className="download-pill">
-              {downloads[downloads.length - 1].state === 'started'
-                ? `Downloading ${downloads[downloads.length - 1].filename}…`
-                : downloads[downloads.length - 1].state === 'completed'
-                  ? `Downloaded ${downloads[downloads.length - 1].filename}`
-                  : `Download failed: ${downloads[downloads.length - 1].filename}`}
-            </span>
-          )}
-        </header>
-        <div ref={sectionsRef} className="sections" style={{ gridTemplateColumns: columns }}>
-          <SectionPane spaceId={spaceId} state={state} section={state.left} />
-          {state.rightOpen && (
-            <div className="splitbar" onPointerDown={startSplitDrag}>
-              <div className="splitbar-grip" />
-            </div>
-          )}
-          {state.rightOpen && <SectionPane spaceId={spaceId} state={state} section={state.right} />}
-        </div>
-        {permissionPrompt && (
-          <div className="overlay overlay-dim">
-            <div className="modal permission-dialog">
-              <p>
-                <strong>{permissionPrompt.origin}</strong> wants to use {permissionPrompt.description}.
-              </p>
-              <div className="modal-buttons">
-                <button className="button primary" onClick={() => answerPermission(true)}>
-                  Allow
-                </button>
-                <button className="button" onClick={() => answerPermission(false)}>
-                  Block
-                </button>
-              </div>
-            </div>
+    <WindowShell
+      windowId={spaceId}
+      overlay={overlay}
+      title={title}
+      // The title bar joins the backdrop wash while the left section is home,
+      // and wears the page's adaptive color with a page there.
+      titlebarClassName={state.left.mode === 'home' ? 'titlebar titlebar-wash' : 'titlebar'}
+      titlebarStyle={
+        leftColors
+          ? ({ '--chrome-bg': leftColors.bg, '--chrome-fg': leftColors.fg } as React.CSSProperties)
+          : undefined
+      }
+      /* The space's color scheme feeds the backdrop wash (docs/ui.md). */
+      rootStyle={washVars(state.colorScheme)}
+    >
+      <div ref={sectionsRef} className="sections" style={{ gridTemplateColumns: columns }}>
+        <SectionPane spaceId={spaceId} state={state} section={state.left} />
+        {state.rightOpen && (
+          <div className="splitbar" onPointerDown={startSplitDrag}>
+            <div className="splitbar-grip" />
           </div>
         )}
-        {sharePrompt && <ScreenShareDialog prompt={sharePrompt} onAnswer={answerScreenShare} />}
+        {state.rightOpen && <SectionPane spaceId={spaceId} state={state} section={state.right} />}
       </div>
-    </OverlayContext.Provider>
+    </WindowShell>
   );
 }
 
@@ -255,7 +148,7 @@ function SectionPane({
         <HomeView spaceId={spaceId} section={section} links={state.links} />
       ) : (
         <WebChrome
-          spaceId={spaceId}
+          windowId={spaceId}
           section={section}
           rightOpen={state.rightOpen}
           extensions={state.extensions}

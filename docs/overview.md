@@ -35,16 +35,22 @@ per OS called out where it applies.
   default (the left). Navigating away from the left page opens the second
   (right) section, keeping the launched page in place — see `behaviors.md`
   for the full routing rules. A draggable split bar separates them.
+- **1-shot windows** — for the errand that belongs to no space: a plain browser
+  window, one page with an address bar, no home and no history, opened from the
+  button beside Spaces and browsing in that space's profile. Nothing about it is
+  remembered once it closes.
 
 Toolbar buttons (per web view): Open right view (left only, hidden while the
 right is open) / Close view (right only) / Move page to left (right only) /
 Back (only while the browser can go back) / Home / Refresh / Trail
-(expandable per-view history) / extension icons.
+(expandable per-view history) / extension icons / 1-shot window and Spaces
+(left only, at the far end).
 
 ## Documentation index
 
 - `architecture.md` — tech stack, process model, components
-- `ui.md` — launch/activation, manager window, space window, toolbar, flyouts
+- `ui.md` — launch/activation, manager window, space window, 1-shot window,
+  toolbar, flyouts
 - `data-model.md` — JSON schemas and storage layout
 - `behaviors.md` — navigation routing, tabs, trail, sessions, extensions
 - `roadmap.md` — out-of-scope list and future directions

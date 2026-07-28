@@ -21,6 +21,12 @@ export interface ExtensionInfo {
 /** Where a web view's toolbar sits: down the section's left edge, or above it. */
 export type ToolbarPosition = 'side' | 'top';
 
+/**
+ * What a 1-shot window opens on: an empty page, the search engine's own home
+ * page, or a page of the user's choosing (`oneShotStartUrl`).
+ */
+export type OneShotStart = 'blank' | 'search' | 'custom';
+
 export interface AppSettings {
   version: number;
   /** `{query}` is replaced with the URL-encoded search text. */
@@ -32,6 +38,10 @@ export interface AppSettings {
   toolbarPosition: ToolbarPosition;
   /** Idle minutes before a backgrounded left tab is unloaded. */
   backgroundTabMinutes: number;
+  /** What a 1-shot window opens on. */
+  oneShotStart: OneShotStart;
+  /** The page `oneShotStart: 'custom'` opens; ignored by the other modes. */
+  oneShotStartUrl: string;
   extensions: ExtensionInfo[];
   /** Ids of spaces open in the last session, reopened on the next plain launch. */
   openSpaces: string[];
@@ -117,6 +127,8 @@ export function defaultSettings(): AppSettings {
     launchAtLogin: false,
     toolbarPosition: 'side',
     backgroundTabMinutes: 30,
+    oneShotStart: 'blank',
+    oneShotStartUrl: '',
     extensions: [],
     openSpaces: []
   };

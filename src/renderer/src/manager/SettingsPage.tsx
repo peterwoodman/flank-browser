@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import type { AppSettings, ToolbarPosition } from '@shared/types';
+import type { AppSettings, OneShotStart, ToolbarPosition } from '@shared/types';
 import { invoke } from '../ipc';
 import { ImportExtensionsDialog } from './ImportExtensionsDialog';
 
 /**
  * Settings behind the Manager's gear: search/suggest URL templates,
- * launch-at-login, toolbar position, background tab timeout, and extension
- * management.
+ * launch-at-login, toolbar position, background tab timeout, the 1-shot
+ * window's start page, and extension management.
  * Extension changes take effect after an app restart.
  */
 export function SettingsPage({
@@ -19,6 +19,7 @@ export function SettingsPage({
   const [searchTemplate, setSearchTemplate] = useState(settings.searchTemplate);
   const [suggestTemplate, setSuggestTemplate] = useState(settings.suggestTemplate);
   const [tabMinutes, setTabMinutes] = useState(String(settings.backgroundTabMinutes));
+  const [oneShotUrl, setOneShotUrl] = useState(settings.oneShotStartUrl);
   const [extError, setExtError] = useState('');
   const [importing, setImporting] = useState(false);
 
@@ -26,6 +27,7 @@ export function SettingsPage({
     setSearchTemplate(settings.searchTemplate);
     setSuggestTemplate(settings.suggestTemplate);
     setTabMinutes(String(settings.backgroundTabMinutes));
+    setOneShotUrl(settings.oneShotStartUrl);
   }, [settings]);
 
   const commitTemplates = (): void => {
@@ -39,6 +41,12 @@ export function SettingsPage({
     } else {
       setTabMinutes(String(settings.backgroundTabMinutes));
     }
+  };
+
+  // Refused rather than stored if it isn't an http(s) address (main validates
+  // it too, since a 1-shot window is navigated there by the host).
+  const commitOneShotUrl = (): void => {
+    void invoke('settings:update', { oneShotStartUrl: oneShotUrl }).then(onChanged);
   };
 
   return (
@@ -109,6 +117,41 @@ export function SettingsPage({
           inputMode="numeric"
         />
       </section>
+
+      <section className="field-row">
+        <label htmlFor="oneshot-start">1-shot window opens on</label>
+        <select
+          id="oneshot-start"
+          className="select-input"
+          value={settings.oneShotStart}
+          onChange={(e) =>
+            void invoke('settings:update', {
+              oneShotStart: e.target.value as OneShotStart
+            }).then(onChanged)
+          }
+        >
+          <option value="blank">Empty page</option>
+          <option value="search">Search engine home page</option>
+          <option value="custom">A page of my own</option>
+        </select>
+      </section>
+
+      {settings.oneShotStart === 'custom' && (
+        <section>
+          <label className="field-label" htmlFor="oneshot-url">
+            1-shot window start page
+          </label>
+          <input
+            id="oneshot-url"
+            className="text-input"
+            value={oneShotUrl}
+            placeholder="https://example.com"
+            onChange={(e) => setOneShotUrl(e.target.value)}
+            onBlur={commitOneShotUrl}
+            spellCheck={false}
+          />
+        </section>
+      )}
 
       <section>
         <div className="field-label">Extensions (changes apply after restart)</div>

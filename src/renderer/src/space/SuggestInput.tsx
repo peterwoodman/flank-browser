@@ -10,7 +10,7 @@ import { SearchIcon, PinIcon, HistoryIcon } from '../components/Icons';
  * debounced ~200 ms, newest query wins, 8 rows max.
  */
 export function SuggestInput({
-  spaceId,
+  windowId,
   side,
   includeTrail,
   value,
@@ -19,7 +19,7 @@ export function SuggestInput({
   raiseOverlay,
   onSubmit
 }: {
-  spaceId: string;
+  windowId: string;
   side: 'left' | 'right';
   includeTrail: boolean;
   /** Text the box shows when not focused (e.g. the current URL). */
@@ -70,7 +70,7 @@ export function SuggestInput({
       if (version !== versionRef.current) return;
       const results = await invoke<SuggestionDto[]>(
         'suggest:query',
-        spaceId,
+        windowId,
         side,
         next,
         includeTrail

@@ -50,6 +50,8 @@ Design rules:
   "launchAtLogin": false,
   "toolbarPosition": "side",
   "backgroundTabMinutes": 30,
+  "oneShotStart": "blank",
+  "oneShotStartUrl": "",
   "openSpaces": ["8b1c…"],
   "permissions": { "https://meet.example.com": { "media": true, "notifications": false } },
   "managerWindow": { "x": 640, "y": 320, "width": 660, "height": 560, "maximized": false },
@@ -76,6 +78,12 @@ Design rules:
   toolbar sits (see `ui.md` → Web view). Anything else falls back to `"side"`.
 - `backgroundTabMinutes` — idle time before a backgrounded left tab is
   unloaded.
+- `oneShotStart` — what a 1-shot window opens on: `"blank"` (default, an empty
+  page), `"search"` (the `searchTemplate`'s own home page), or `"custom"` for
+  `oneShotStartUrl`. Anything else falls back to `"blank"`.
+- `oneShotStartUrl` — the page `"custom"` opens. Held to `http(s)` like the
+  search templates, since the host navigates a window to it; a value that got in
+  another way is ignored in favor of an empty page.
 - `openSpaces` — ids of the spaces open in the last session,
   reopened on the next plain launch (see `behaviors.md` → Startup). The
   final window close of a session is not recorded (that ends the session,

@@ -203,6 +203,8 @@ above:
   to return to (hidden on fresh sections, after the tab was evicted, or after
   the section was closed and its views unloaded). On the **right** section it
   is always shown: with no page to return to, it closes the right section.
+- The **1-shot window** and **Spaces** buttons sit in the bottom-left corner of
+  the left section's home view, the same pair that ends its page toolbar.
 
 ### Web view (WebSection)
 
@@ -230,14 +232,15 @@ Toolbar buttons, in order — top to bottom on the side, left to right on top:
 | Refresh | both | Reloads the current page |
 | Trail | both; hidden unless the view has visited more than the current page | Expands the trail flyout (history of this view) |
 | Extension icons | both | One icon per enabled extension, rendered grayscale to match the monochrome toolbar glyphs. Clicking opens the extension's popup in a small window anchored to the button — beside it, or below it when the toolbar is on top; extensions without a popup open their options page instead |
+| 1-shot window | **left** section only; at the far end of the toolbar beside Spaces, and also on the home view | Opens a 1-shot window in this space's profile (see below) |
 | Spaces | **left** section only; pushed to the far end of the toolbar (bottom on the side, right on top), and also on the home view | Opens (or focuses) the Manager window |
 
 Each section has its own toolbar; buttons act on that section's view only. The
-Spaces button is the exception — only on the left, pushed to the toolbar's
-far end, and shown on both the page toolbar and the home view (where it stays
-in the bottom-left corner regardless of the toolbar's position); it acts on the
-app rather than on the view. Flyouts open from the toolbar edge: beside it when
-it is on the side, below it when on top.
+trailing pair — 1-shot window and Spaces — are the exception: only on the left,
+pushed to the toolbar's far end, and shown on both the page toolbar and the home
+view (where they sit in the bottom-left corner regardless of the toolbar's
+position); they open a window rather than acting on the view. Flyouts open from
+the toolbar edge: beside it when it is on the side, below it when on top.
 
 While a page is loading, a thin indeterminate progress bar sits at the top of
 the section's content area, tinted with the page's adaptive colors. It appears
@@ -282,6 +285,51 @@ matching is by host, case-insensitive, ignoring a `www.` prefix.
 - **Pin to home** button — adds the current page to this space's home
   grid (icon and title pre-filled from the page's web app manifest when it has
   one, else the live favicon and document title — see `behaviors.md` → Favicons).
+
+## 1-shot window
+
+A plain browser window for the errand that doesn't belong in a space: check a
+link someone sent, sign in to something once, look one thing up. Opened from the
+**1-shot window** button beside Spaces — in the left toolbar or on the home view
+— and it browses in the profile of the window that opened it, so it is the same
+identity, cookies and logins included, as the space it came from.
+
+```
+┌───────────────────────────────────────────────┐
+│  Title bar: 1-shot - <page title>          │
+├─┬─────────────────────────────────────────────┤
+│▣│  Address bar                                │
+│↻├─────────────────────────────────────────────┤
+│ │  Page                                       │
+└─┴─────────────────────────────────────────────┘
+```
+
+The title bar reads `1-shot - page title`, falling back to `1-shot` before a
+page has one — the same shape as a space window's title, with `1-shot` standing
+in for the space name.
+
+It is the space window's web view with everything space-specific taken out:
+
+- **No home** — no home view, no Home button, nowhere to return to. The window
+  starts on a page and stays on pages.
+- **The address bar is always there**, with no *Pin to home* button: there is no
+  home grid to pin to, and nothing to hide the bar for.
+- **No trail**, so no Trail button and no flyout — this window keeps no history
+  of where it has been (`behaviors.md` → 1-shot windows).
+- **One pane**: no split, no right section, and so none of the buttons that
+  open, close, or move a page between sections.
+- The toolbar keeps **Back**, **Refresh**, and the **extension icons** —
+  extensions are what make signing in here work — and follows the same toolbar
+  position setting as a space window. Adaptive page colors, the load bar, the
+  crash panel, find-in-page, downloads, permission and screen-share dialogs, and
+  popup windows all behave as they do in a space.
+
+What it opens on is a setting (Manager → Settings → *1-shot window opens on*):
+an empty page, the search engine's own home page, or a page of the user's
+choosing. Default 1100×800; nothing about a 1-shot window is remembered — not
+its size, not its position, not what it was showing. Closing it discards it, and
+launching Flank never brings one back. Any number can be open at once, and each
+is independent of the window that opened it (which can close first).
 
 ## Keyboard and pointer shortcuts
 

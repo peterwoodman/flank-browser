@@ -14,7 +14,7 @@ import { spacesStore } from '../stores/spaces-store';
 import { newId } from '../ids';
 import { iconUrl } from '../icons-protocol';
 import { parseExtensionManifest } from '../extension-manifest';
-import { isValidTemplate } from '../navigation-input';
+import { isValidTemplate, isWebUrl } from '../navigation-input';
 import { importExtensions, scanBrowsers } from '../browser-import';
 import { applyLaunchAtLogin } from '../launch-at-login';
 import { discardProfileData } from '../profiles';
@@ -126,13 +126,26 @@ export function registerManagerIpc(): void {
       if (typeof patch.backgroundTabMinutes === 'number' && patch.backgroundTabMinutes >= 1) {
         s.backgroundTabMinutes = Math.floor(patch.backgroundTabMinutes);
       }
+      if (
+        patch.oneShotStart === 'blank' ||
+        patch.oneShotStart === 'search' ||
+        patch.oneShotStart === 'custom'
+      ) {
+        s.oneShotStart = patch.oneShotStart;
+      }
+      // A 1-shot window is navigated to this by the host, so it is held to the
+      // same schemes as a search template. Empty clears it.
+      if (typeof patch.oneShotStartUrl === 'string') {
+        const url = patch.oneShotStartUrl.trim();
+        if (url === '' || isWebUrl(url)) s.oneShotStartUrl = url;
+      }
     });
     if (settingsStore.current.launchAtLogin !== before) {
       applyLaunchAtLogin(settingsStore.current.launchAtLogin);
     }
     // Open windows re-lay out immediately; no restart, unlike extensions.
     if (settingsStore.current.toolbarPosition !== toolbarBefore) {
-      windowManager.refreshAllSpaces();
+      windowManager.refreshAllWindows();
     }
   });
 

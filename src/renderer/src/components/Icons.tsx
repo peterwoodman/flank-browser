@@ -92,6 +92,15 @@ export const GridIcon = (): React.JSX.Element => (
   </Icon>
 );
 
+/** A 1-shot window: one plain frame with an address line, nothing pinned. */
+export const OneShotIcon = (): React.JSX.Element => (
+  <Icon>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <path d="M3 9h18" />
+    <path d="M6.5 6.5h5" />
+  </Icon>
+);
+
 export const PlusIcon = (): React.JSX.Element => (
   <Icon>
     <path d="M12 5v14" />

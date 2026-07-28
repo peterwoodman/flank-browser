@@ -1,37 +1,18 @@
-import {
-  BaseWindow,
-  BrowserWindow,
-  Session,
-  WebContentsView,
-  Menu,
-  MenuItemConstructorOptions,
-  clipboard,
-  nativeTheme
-} from 'electron';
+import { BaseWindow, MenuItemConstructorOptions, Session } from 'electron';
 import { Space, SessionFile } from '@shared/types';
-import { PageColors, Rect, Side, SectionDto, SpaceStateDto } from '@shared/space-types';
+import { Rect, Side, SectionDto, SpaceStateDto } from '@shared/space-types';
+import { ChromeWindow } from './chrome-window';
 import { Section } from './section';
 import { ContentView } from './content-view';
 import { spacesStore } from './stores/spaces-store';
 import { settingsStore } from './stores/settings-store';
 import { loadSession, saveSession } from './stores/session-store';
-import { applyRestoredPosition, capturePlacement, windowOptionsFrom } from './placement';
-import { chromePreloadPath, loadChromeRoute } from './renderer-url';
-import { isPopupTarget, isWebUrl } from './navigation-input';
-import { titleBarOverlayColors, windowIcon } from './manager-window';
+import { capturePlacement } from './placement';
 import { readManifest } from './manifest-info';
 import { newId } from './ids';
 import { storeIcon, captureBestFavicon, ensureSpaceIcons } from './favicons';
-import { fireAndForget, log } from './log';
-import { PermissionPrompt } from './permissions';
-import { ScreenSharePrompt } from './screen-share';
-import {
-  extensionButtons,
-  extensionActivation,
-  extensionsAddTab,
-  extensionsSelectTab
-} from './extensions';
-import { ExtensionPopup } from './extension-popup';
+import { fireAndForget } from './log';
+import { extensionButtons, extensionsAddTab, extensionsSelectTab } from './extensions';
 
 const SPLIT_STEP = 0.05;
 const SPLIT_MIN = 0.15;
@@ -39,101 +20,33 @@ const SPLIT_MAX = 0.85;
 const AUTOSAVE_MS = 30_000;
 
 /**
- * One window per space: a BaseWindow holding a full-window chrome view (the
- * React app rendering title bar, toolbars, home views, and flyouts) plus the
- * pooled content views for browsed pages, positioned into the holes the
- * chrome reports. Content views stack above the chrome; opening a flyout
- * raises the chrome to the top (transparent, light-dismiss) and closing it
- * lowers it back.
+ * One window per space: the two sections (home view or web page each) and the
+ * space's own rules — pinned-left navigation routing, keep-alive tabs, the
+ * home grid, the trail, and session restore. The window shell itself is
+ * `ChromeWindow`.
  */
-export class SpaceWindowController {
+export class SpaceWindowController extends ChromeWindow {
   readonly space: Space;
-  readonly win: BaseWindow;
-  /** The profile partition every page in this window browses as. */
-  readonly session: Session;
-  private readonly chromeView: WebContentsView;
   private readonly left: Section;
   private readonly right: Section;
   private rightOpen = false;
-  private layoutRects: Record<Side, Rect | null> = { left: null, right: null };
-  private readonly attached = new Set<ContentView>();
-  private overlayActive = false;
-  private pushQueued = false;
-  private autosaveTimer: NodeJS.Timeout;
-  private chromeReady = false;
-  private readonly permissionResolvers = new Map<string, (allow: boolean) => void>();
-  private screenShareResolver: ((choice: string | null) => void) | null = null;
-  /** Last colors the chrome reported for the left section's page; null on home. */
-  private chromeColors: PageColors | null = null;
-  private extensionPopup: ExtensionPopup | null = null;
-
-  onClosed: () => void = () => {};
+  private readonly autosaveTimer: NodeJS.Timeout;
 
   constructor(space: Space, ses: Session) {
-    this.space = space;
-    this.session = ses;
-
-    const opts = windowOptionsFrom(space.window, { width: 1400, height: 900 });
-    this.win = new BaseWindow({
-      x: opts.x,
-      y: opts.y,
-      width: opts.width,
-      height: opts.height,
-      minWidth: 600,
-      minHeight: 400,
-      show: false,
-      icon: windowIcon,
+    super({
+      id: space.id,
+      session: ses,
+      route: `space/${space.id}`,
       title: space.name,
-      titleBarStyle: 'hidden',
-      ...(process.platform !== 'darwin'
-        ? { titleBarOverlay: titleBarOverlayColors(space.colorScheme) }
-        : {}),
-      backgroundColor: nativeTheme.shouldUseDarkColors ? '#202020' : '#f3f3f3'
+      defaultSize: { width: 1400, height: 900 },
+      placement: space.window,
+      captionScheme: space.colorScheme
     });
-    applyRestoredPosition(this.win, opts);
-
-    this.chromeView = new WebContentsView({
-      webPreferences: { preload: chromePreloadPath }
-    });
-    // Transparent so that, when raised above the pages for a flyout, only the
-    // flyout itself paints; the window's backgroundColor is the normal base.
-    this.chromeView.setBackgroundColor('#00000000');
-    // Loads reset a view's background to the engine default (white/dark), so
-    // re-apply after every load or the raised chrome blanks the pages.
-    this.chromeView.webContents.on('did-finish-load', () => {
-      this.chromeView.setBackgroundColor('#00000000');
-    });
-    this.win.contentView.addChildView(this.chromeView);
-    this.fitChromeView();
+    this.space = space;
 
     this.left = new Section(space, true, ses);
     this.right = new Section(space, false, ses);
     this.wireSections();
-
-    this.chromeView.webContents.once('did-finish-load', () => {
-      this.chromeReady = true;
-      if (opts.maximized) this.win.maximize();
-      this.win.show();
-      if (!opts.maximized) applyRestoredPosition(this.win, opts);
-      this.restoreSession();
-      this.pushState();
-    });
-    loadChromeRoute(this.chromeView.webContents, `space/${space.id}`);
-
-    this.win.on('resize', () => this.fitChromeView());
-    this.win.on('close', () => {
-      this.saveSession();
-      this.savePlacement();
-    });
-    this.win.on('closed', () => {
-      clearInterval(this.autosaveTimer);
-      for (const resolve of this.permissionResolvers.values()) resolve(false);
-      this.permissionResolvers.clear();
-      this.resolveScreenShare(null);
-      this.left.dispose();
-      this.right.dispose();
-      this.onClosed();
-    });
 
     // Autosave guards against crashes (docs/behaviors.md → Session restore).
     this.autosaveTimer = setInterval(() => this.saveSession(), AUTOSAVE_MS);
@@ -141,6 +54,25 @@ export class SpaceWindowController {
     // Hand-added links get a fallback-fetched icon (live capture is better
     // but needs the page opened once).
     fireAndForget('ensure space icons', this.refreshFavicons());
+  }
+
+  protected override get captionScheme(): string {
+    return this.space.colorScheme;
+  }
+
+  protected override onChromeReady(): void {
+    this.restoreSession();
+  }
+
+  protected override onWindowClose(): void {
+    this.saveSession();
+    this.savePlacement();
+  }
+
+  protected override onWindowClosed(): void {
+    clearInterval(this.autosaveTimer);
+    this.left.dispose();
+    this.right.dispose();
   }
 
   async refreshFavicons(): Promise<void> {
@@ -225,114 +157,26 @@ export class SpaceWindowController {
     spacesStore.save();
   }
 
-  /**
-   * Content context menu — the engine ships none. Kept minimal: link/image
-   * address copying, clipboard editing, and "open in the other view" routed
-   * through the same rules as any new-window request.
-   */
-  private attachContextMenu(view: ContentView): void {
-    view.webContents.on('context-menu', (_event, params) => {
-      const isLeft = this.sideOf(view) === 'left';
-      const template: MenuItemConstructorOptions[] = [];
-
-      if (params.linkURL && /^https?:/i.test(params.linkURL)) {
-        const url = params.linkURL;
-        template.push(
-          { label: 'Open link', click: () => view.navigate(url) },
-          {
-            label: isLeft ? 'Open link in right view' : 'Open link in left view',
-            click: () => (isLeft ? this.openInRight(url) : this.left.promote(url))
-          },
-          { label: 'Copy link address', click: () => clipboard.writeText(url) },
-          { type: 'separator' }
-        );
+  /** The other view is where a link can also be opened from. */
+  protected override linkMenuItems(
+    view: ContentView,
+    url: string
+  ): MenuItemConstructorOptions[] {
+    const isLeft = this.sideOf(view) === 'left';
+    return [
+      {
+        label: isLeft ? 'Open link in right view' : 'Open link in left view',
+        click: () => (isLeft ? this.openInRight(url) : this.left.promote(url))
       }
-      if (params.hasImageContents && params.srcURL) {
-        const src = params.srcURL;
-        template.push(
-          { label: 'Copy image address', click: () => clipboard.writeText(src) },
-          { type: 'separator' }
-        );
-      }
-      if (params.isEditable) {
-        template.push(
-          { role: 'cut', enabled: params.editFlags.canCut },
-          { role: 'copy', enabled: params.editFlags.canCopy },
-          { role: 'paste', enabled: params.editFlags.canPaste },
-          { role: 'selectAll' },
-          { type: 'separator' }
-        );
-      } else if (params.selectionText.trim()) {
-        template.push({ role: 'copy' }, { type: 'separator' });
-      }
-      template.push(
-        { label: 'Reload', click: () => view.reload() },
-        { label: 'Copy page address', click: () => clipboard.writeText(view.currentUrl()) }
-      );
-
-      Menu.buildFromTemplate(template).popup({ window: this.win });
-    });
+    ];
   }
 
   private section(side: Side): Section {
     return side === 'left' ? this.left : this.right;
   }
 
-  /**
-   * A page opened a real popup window (docs/behaviors.md → Navigation
-   * routing). Flank ties it to this space window and labels it with the
-   * origin: a popup has no address bar, and these windows are exactly where
-   * credentials get typed, so the site asking must be visible.
-   */
-  private adoptPopup(popup: BrowserWindow): void {
-    // BrowserWindow accepts any BaseWindow parent at runtime; the typing is
-    // stricter than the implementation.
-    popup.setParentWindow(this.win as unknown as BrowserWindow);
-    popup.setAutoHideMenuBar(true);
-    popup.setMenuBarVisibility(false);
-
-    const wc = popup.webContents;
-    const showOrigin = (): void => {
-      let host = '';
-      try {
-        host = new URL(wc.getURL()).host;
-      } catch {
-        /* about:blank until the popup's first navigation */
-      }
-      const title = wc.getTitle();
-      popup.setTitle(host ? `${title || 'Flank'} — ${host}` : title || 'Flank');
-    };
-    popup.on('page-title-updated', (event) => {
-      event.preventDefault();
-      showOrigin();
-    });
-    wc.on('did-navigate', showOrigin);
-    showOrigin();
-
-    // Password managers should reach the sign-in form inside the popup.
-    extensionsAddTab(wc, popup);
-
-    // Links out of the popup follow Flank's routing; nested popups (some
-    // providers chain them) stay popups.
-    wc.setWindowOpenHandler((details) => {
-      if (details.disposition === 'new-window') {
-        return isPopupTarget(details.url) ? { action: 'allow' } : { action: 'deny' };
-      }
-      if (isWebUrl(details.url)) this.openInRight(details.url);
-      return { action: 'deny' };
-    });
-    wc.on('did-create-window', (nested) => this.adoptPopup(nested));
-  }
-
-  // --- View attachment & layout ---
-
-  private fitChromeView(): void {
-    const bounds = this.win.getContentBounds();
-    this.chromeView.setBounds({ x: 0, y: 0, width: bounds.width, height: bounds.height });
-  }
-
-  /** Attaches/positions the active view per section; detaches the rest (kept alive off-window). */
-  private syncViews(): void {
+  /** The active view of each open section. */
+  protected override wantedViews(): Map<ContentView, Rect | null> {
     const wanted = new Map<ContentView, Rect | null>();
     if (this.left.mode === 'web' && this.left.activeView) {
       wanted.set(this.left.activeView, this.layoutRects.left);
@@ -340,48 +184,7 @@ export class SpaceWindowController {
     if (this.rightOpen && this.right.mode === 'web' && this.right.activeView) {
       wanted.set(this.right.activeView, this.layoutRects.right);
     }
-
-    for (const view of [...this.attached]) {
-      if (!wanted.has(view)) {
-        this.win.contentView.removeChildView(view.view);
-        this.attached.delete(view);
-      }
-    }
-
-    for (const [view, rect] of wanted) {
-      if (!this.attached.has(view)) {
-        // Content views sit above the chrome unless an overlay is up.
-        const index = this.overlayActive ? 0 : undefined;
-        this.win.contentView.addChildView(view.view, index);
-        this.attached.add(view);
-        extensionsSelectTab(view.webContents); // now the section's active tab
-      }
-      if (rect) view.view.setBounds(rect);
-      // Splash and crash panels paint in the chrome's hole under the view,
-      // so the view hides while either is up.
-      view.view.setVisible(!!rect && !view.crashed && !view.splash);
-    }
-  }
-
-  /** The chrome reported where a section's web content should display. */
-  setLayout(side: Side, rect: Rect | null): void {
-    this.layoutRects[side] = rect;
-    this.syncViews();
-  }
-
-  /**
-   * Flyout/overlay mode: the chrome must draw above the pages (its background
-   * is transparent, so only the flyout is visible). Any click outside is the
-   * chrome's to dismiss.
-   */
-  setOverlay(active: boolean): void {
-    if (this.overlayActive === active) return;
-    this.overlayActive = active;
-    if (active) {
-      this.win.contentView.addChildView(this.chromeView); // move to top
-    } else {
-      this.win.contentView.addChildView(this.chromeView, 0); // back under the pages
-    }
+    return wanted;
   }
 
   // --- Section actions (invoked from chrome IPC) ---
@@ -403,14 +206,6 @@ export class SpaceWindowController {
     const returned = this.section(side).returnFromHome();
     // Right home with nothing to return to: ✕ closes the section.
     if (!returned && side === 'right') this.closeRightSection();
-  }
-
-  refresh(side: Side): void {
-    this.section(side).activeView?.reload();
-  }
-
-  goBack(side: Side): void {
-    this.section(side).activeView?.goBackInEngine();
   }
 
   openRight(): void {
@@ -474,149 +269,33 @@ export class SpaceWindowController {
   }
 
   /** The section's currently shown web view, if any. */
-  sectionView(side: Side): ContentView | null {
+  override sectionView(side: Side): ContentView | null {
     return this.section(side).activeView;
   }
 
   /** True if the given webContents belongs to one of this window's pages. */
-  containsWebContents(webContentsId: number): boolean {
+  override containsWebContents(webContentsId: number): boolean {
     return [...this.left.allViews(), ...this.right.allViews()].some(
       (v) => v.webContents.id === webContentsId
     );
   }
 
-  /** Fire-and-forget event to this window's chrome renderer. */
-  notifyChrome(channel: string, ...args: unknown[]): void {
-    if (!this.chromeReady || this.win.isDestroyed()) return;
-    this.chromeView.webContents.send(`flank:${channel}`, ...args);
-  }
-
-  // --- Find in page ---
-
-  find(side: Side, text: string, forward: boolean, findNext: boolean): void {
-    this.sectionView(side)?.findInPage(text, { forward, findNext });
-  }
-
-  stopFind(side: Side): void {
-    this.sectionView(side)?.stopFind();
-  }
-
-  // --- Permissions ---
-
-  /** Shows the chrome's permission dialog; resolves with the user's choice. */
-  showPermissionPrompt(prompt: PermissionPrompt): Promise<boolean> {
-    return new Promise((resolve) => {
-      const id = newId();
-      this.permissionResolvers.set(id, resolve);
-      this.notifyChrome('space:permissionPrompt', { id, ...prompt });
-    });
-  }
-
-  resolvePermission(id: string, allow: boolean): void {
-    const resolve = this.permissionResolvers.get(id);
-    this.permissionResolvers.delete(id);
-    resolve?.(allow);
-  }
-
-  /**
-   * Shows the screen-share picker; resolves with the chosen source (or kind,
-   * where the system portal picks) and null when the user declines. A second
-   * request while the dialog is open is declined rather than replacing it,
-   * which would leave the first page waiting forever.
-   */
-  showScreenSharePrompt(prompt: ScreenSharePrompt): Promise<string | null> {
-    if (this.screenShareResolver) return Promise.resolve(null);
-    return new Promise((resolve) => {
-      this.screenShareResolver = resolve;
-      this.notifyChrome('space:screenSharePrompt', prompt);
-    });
-  }
-
-  resolveScreenShare(choice: string | null): void {
-    const resolve = this.screenShareResolver;
-    this.screenShareResolver = null;
-    resolve?.(choice);
-  }
-
   // --- Extensions ---
 
   /**
-   * An extension's toolbar button was clicked: open its popup anchored to the
-   * button — beside it, or below it when the toolbar sits on top — or fall
-   * back to its options page in this section's view (docs/behaviors.md →
-   * Extensions). Link-outs from the popup route like any new-window request
-   * from that section.
+   * A URL the chrome asks to open (a popup link-out, or an extension popup's):
+   * routed like any new-window request from that section.
    */
-  activateExtension(side: Side, settingsId: string, anchor: Rect): void {
-    const activation = extensionActivation(settingsId);
-    if (!activation) {
-      log(`extension ${settingsId} has no popup or options page`);
-      return;
-    }
-
-    if (activation.kind === 'options') {
-      this.sectionView(side)?.navigate(activation.url, { suppressTrail: true });
-      return;
-    }
-
-    this.extensionPopup?.close();
-    const placement = settingsStore.current.toolbarPosition === 'top' ? 'below' : 'right';
-    const popup = new ExtensionPopup(
-      this.win,
-      this.session,
-      activation.url,
-      anchor,
-      placement,
-      (url) => {
-        if (side === 'left') this.openInRight(url);
-        else this.sectionView('right')?.navigate(url);
-      }
-    );
-    popup.onClosed = () => {
-      if (this.extensionPopup === popup) this.extensionPopup = null;
-    };
-    this.extensionPopup = popup;
+  protected override routeFromChrome(side: Side, url: string): void {
+    if (side === 'left') this.openInRight(url);
+    else this.sectionView('right')?.navigate(url);
   }
 
   /** chrome.tabs.create lands here: same routing as a new-window request. */
-  openTabForExtension(url: string): [Electron.WebContents, BaseWindow] | null {
+  override openTabForExtension(url: string): [Electron.WebContents, BaseWindow] | null {
     this.openInRight(url);
     const view = this.sectionView('right');
     return view ? [view.webContents, this.win] : null;
-  }
-
-  // --- Adaptive colors ---
-
-  /**
-   * The chrome computed the window's resolved theme colors (page colors after
-   * contrast adjustment, or its own defaults); tint the native caption
-   * buttons to match (docs/ui.md → Adaptive colors).
-   */
-  setChromeColors(colors: PageColors | null): void {
-    this.chromeColors = colors;
-    this.applyCaptionColors();
-  }
-
-  /**
-   * Re-tints the caption buttons after the space's color scheme changed. The
-   * chrome only reports colors when the page's change, so this can't wait for
-   * the next report.
-   */
-  refreshCaptionColors(): void {
-    this.applyCaptionColors();
-  }
-
-  private applyCaptionColors(): void {
-    if (process.platform === 'darwin') return; // no overlay buttons to tint
-    try {
-      const wash = titleBarOverlayColors(this.space.colorScheme);
-      this.win.setTitleBarOverlay({
-        color: this.chromeColors?.bg || wash.color,
-        symbolColor: this.chromeColors?.fg || wash.symbolColor
-      });
-    } catch {
-      // Overlay tinting is cosmetic; some platforms/versions lack support.
-    }
   }
 
   /**
@@ -699,32 +378,9 @@ export class SpaceWindowController {
     }
   }
 
-  focus(): void {
-    if (this.win.isMinimized()) this.win.restore();
-    this.win.focus();
-  }
-
-  close(): void {
-    this.win.close();
-  }
-
   // --- State snapshots for the chrome ---
 
-  /** Batches state pushes within a tick; every mutation ends with one snapshot. */
-  pushState(): void {
-    if (this.pushQueued || !this.chromeReady) return;
-    this.pushQueued = true;
-    setImmediate(() => {
-      this.pushQueued = false;
-      if (this.win.isDestroyed()) return;
-      this.syncViews(); // visibility depends on splash/crash state
-      const dto = this.buildState();
-      this.chromeView.webContents.send('flank:space:state', dto);
-      this.applyWindowTitle(dto);
-    });
-  }
-
-  buildState(): SpaceStateDto {
+  override buildState(): SpaceStateDto {
     return {
       spaceId: this.space.id,
       name: this.space.name,
@@ -773,8 +429,8 @@ export class SpaceWindowController {
   }
 
   /** Window title tracks the left section's active page (docs/ui.md). */
-  private applyWindowTitle(dto: SpaceStateDto): void {
-    const pageTitle = dto.left.mode === 'web' ? dto.left.pageTitle : '';
+  protected override onStatePushed(): void {
+    const pageTitle = this.left.mode === 'web' ? (this.left.activeView?.pageTitle ?? '') : '';
     this.win.setTitle(pageTitle ? `${this.space.name} - ${pageTitle}` : this.space.name);
   }
 }

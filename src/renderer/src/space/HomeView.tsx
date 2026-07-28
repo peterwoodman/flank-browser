@@ -4,7 +4,7 @@ import type { SectionDto, SuggestionDto } from '@shared/space-types';
 import { invoke } from '../ipc';
 import { ContextMenu } from '../components/ContextMenu';
 import { LinkDialog } from './LinkDialog';
-import { CloseIcon, GridIcon, PlusIcon } from '../components/Icons';
+import { CloseIcon, GridIcon, OneShotIcon, PlusIcon } from '../components/Icons';
 import { SuggestInput } from './SuggestInput';
 
 type Dialog = { kind: 'add' } | { kind: 'edit'; link: SpaceLink } | null;
@@ -60,7 +60,7 @@ export function HomeView({
 
       <div className="home-search">
         <SuggestInput
-          spaceId={spaceId}
+          windowId={spaceId}
           side={side}
           includeTrail={false}
           placeholder="Search or enter address"
@@ -113,13 +113,18 @@ export function HomeView({
       </button>
 
       {side === 'left' && (
-        <button
-          className="icon-button home-spaces"
-          title="Spaces"
-          onClick={() => void invoke('manager:open')}
-        >
-          <GridIcon />
-        </button>
+        <div className="home-corner">
+          <button
+            className="icon-button"
+            title="1-shot window"
+            onClick={() => void invoke('oneshot:open', spaceId)}
+          >
+            <OneShotIcon />
+          </button>
+          <button className="icon-button" title="Spaces" onClick={() => void invoke('manager:open')}>
+            <GridIcon />
+          </button>
+        </div>
       )}
 
       {menu && (

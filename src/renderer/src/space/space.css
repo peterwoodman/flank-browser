@@ -94,10 +94,13 @@
   right: 10px;
 }
 
-.home-spaces {
+/* The home view's own copy of the toolbar's trailing pair (1-shot, Spaces). */
+.home-corner {
   position: absolute;
   bottom: 10px;
   left: 10px;
+  display: flex;
+  gap: 4px;
 }
 
 .home-search {
