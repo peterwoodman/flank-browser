@@ -419,7 +419,8 @@
   object-fit: contain;
 }
 
-.crash-panel {
+.crash-panel,
+.page-panel {
   position: absolute;
   inset: 0;
   display: flex;
@@ -428,6 +429,34 @@
   justify-content: center;
   gap: 14px;
   background: var(--bg);
+}
+
+.page-panel {
+  padding: 0 32px;
+  text-align: center;
+}
+
+.page-panel p {
+  margin: 0;
+  max-width: 42em;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.page-panel-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.page-panel-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.page-panel-note {
+  max-width: 42em;
+  color: var(--fg-muted);
+  font-size: 12px;
 }
 
 /* --- Flyouts --- */
@@ -588,6 +617,73 @@
 .permission-dialog p {
   margin: 0 0 14px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+/* --- Sign-in dialog --- */
+
+.auth-dialog p {
+  margin: 0 0 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.auth-realm {
+  color: var(--fg-muted);
+  font-size: 12px;
+}
+
+.auth-warning {
+  color: #c42b1c;
+  font-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .auth-warning {
+    color: #ff99a4;
+  }
+}
+
+.auth-dialog .text-input + .text-input {
+  margin-top: 8px;
+}
+
+/* --- Client certificate picker --- */
+
+.client-cert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.client-cert-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.client-cert-item.selected {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.client-cert-subject {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.client-cert-detail {
+  color: var(--fg-muted);
+  font-size: 12px;
   overflow-wrap: anywhere;
 }
 

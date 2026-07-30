@@ -1,4 +1,5 @@
 import { app } from 'electron';
+import { ChromeWindow } from './chrome-window';
 import { dataDir, ensureDataDirs } from './paths';
 import { installGlobalErrorLogging, log, logError, fireAndForget } from './log';
 import { settingsStore } from './stores/settings-store';
@@ -9,6 +10,9 @@ import { registerIconSchemePrivileges, installIconProtocol } from './icons-proto
 import { registerManagerIpc } from './ipc/manager-ipc';
 import { registerSpaceIpc } from './ipc/space-ipc';
 import { registerContentMessageRouting } from './content-view';
+import { installCertificateHandler } from './certificates';
+import { installClientCertificateHandler } from './client-certificates';
+import { installAuthHandler } from './http-auth';
 import { installPermissionHandler } from './permissions';
 import { installDisplayMediaHandler } from './screen-share';
 import { installDownloadHandler } from './downloads';
@@ -65,6 +69,15 @@ if (!app.requestSingleInstanceLock({ spaceArg: parseSpaceArg(process.argv) })) {
     registerManagerIpc();
     registerSpaceIpc();
     registerContentMessageRouting();
+    installCertificateHandler();
+    installAuthHandler((contents, prompt) => {
+      const w = askingWindow(contents);
+      return w ? w.showAuthPrompt(prompt) : Promise.resolve(null);
+    });
+    installClientCertificateHandler((contents, certificates) => {
+      const w = askingWindow(contents);
+      return w ? w.showClientCertPrompt(certificates) : Promise.resolve(null);
+    });
     // These all install per browsing session, as each profile's partition is
     // created; only the app-wide policy is decided here.
     initExtensions({
@@ -81,6 +94,13 @@ if (!app.requestSingleInstanceLock({ spaceArg: parseSpaceArg(process.argv) })) {
     installDownloadHandler((contents, notice) => {
       windowManager.windowForWebContents(contents.id)?.notifyChrome('space:download', notice);
     });
+    // The engine survives losing these, and the page usually does too — but a
+    // GPU process that keeps dying is behind a whole class of "it went blank"
+    // and leaves no other trace.
+    app.on('child-process-gone', (_event, details) => {
+      if (details.reason === 'clean-exit') return;
+      log(`${details.type} process gone: ${details.reason}`);
+    });
     if (process.platform === 'linux') log(`Linux session: ${describeLinuxSession()}`);
     log('App started');
     handleActivation(parseSpaceArg(process.argv), false);
@@ -94,6 +114,19 @@ if (!app.requestSingleInstanceLock({ spaceArg: parseSpaceArg(process.argv) })) {
 app.on('window-all-closed', () => {
   app.quit();
 });
+
+/**
+ * Where a dialog raised on behalf of a page belongs. A request can come from a
+ * page in an adopted popup or an extension page, which no window counts among
+ * its own; a window of that page's profile is still the right place to ask,
+ * and the only one that could be asking.
+ */
+function askingWindow(contents: Electron.WebContents): ChromeWindow | undefined {
+  return (
+    windowManager.windowForWebContents(contents.id) ??
+    windowManager.focusedWindow(contents.session)
+  );
+}
 
 /**
  * Launch/activation per docs/behaviors.md → Startup:

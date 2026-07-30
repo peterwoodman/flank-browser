@@ -92,6 +92,18 @@ export function registerSpaceIpc(): void {
     chromeWindow(windowId)?.goBack(sideOf(side));
   });
 
+  ipcMain.handle('flank:section:proceedCert', (_e, windowId: string, side: unknown) => {
+    chromeWindow(windowId)?.proceedThroughCertificate(sideOf(side));
+  });
+
+  ipcMain.handle('flank:section:keepWaiting', (_e, windowId: string, side: unknown) => {
+    chromeWindow(windowId)?.keepWaiting(sideOf(side));
+  });
+
+  ipcMain.handle('flank:section:killPage', (_e, windowId: string, side: unknown) => {
+    chromeWindow(windowId)?.killPage(sideOf(side));
+  });
+
   ipcMain.handle('flank:section:openRight', (_e, spaceId: string) => {
     controller(spaceId)?.openRight();
   });
@@ -251,6 +263,26 @@ export function registerSpaceIpc(): void {
   ipcMain.on('flank:screenShare:respond', (_e, windowId: string, choice: string | null) => {
     chromeWindow(windowId)?.resolveScreenShare(choice == null ? null : String(choice));
   });
+
+  ipcMain.on(
+    'flank:clientCert:respond',
+    (_e, windowId: string, id: string, fingerprint: string | null) => {
+      chromeWindow(windowId)?.resolveClientCert(
+        String(id),
+        fingerprint == null ? null : String(fingerprint)
+      );
+    }
+  );
+
+  ipcMain.on(
+    'flank:auth:respond',
+    (_e, windowId: string, id: string, answer: { username: string; password: string } | null) => {
+      chromeWindow(windowId)?.resolveAuth(
+        String(id),
+        answer ? { username: String(answer.username), password: String(answer.password) } : null
+      );
+    }
+  );
 
   // --- Adaptive colors: the chrome's resolved theme tints the native caption buttons ---
 

@@ -148,12 +148,16 @@ main process
 │   └── section (×2)      – tab pool (keep-alive per home link + ad-hoc view),
 │                           eviction timer, session capture/restore
 │       └── content-view  – one WebContentsView: navigation routing, trail,
-│                           colors, load/crash state, favicon capture, zoom
+│                           colors, load/crash/certificate state, favicon
+│                           capture, zoom
 ├── one-shot-window       – a single free-browsing page, nothing remembered
 ├── manager-window        – launcher window (BrowserWindow, same React app)
 ├── extensions            – electron-chrome-extensions per profile + buttons
 ├── favicons              – live capture + fallback fetch icon cache
 ├── permissions/downloads – session-level handlers → per-window chrome UI
+├── certificates          – app-wide certificate-error hook + trusted hosts
+├── client-certificates   – app-wide select-client-certificate hook + picker
+├── http-auth             – app-wide login hook → per-window sign-in dialog
 ├── screen-share          – display-media handler + source picker dialog
 └── icons-protocol        – flank-icon:// serves cached and extension icons
 ```
@@ -337,6 +341,31 @@ touching them at preload top level finds nothing there yet.
 ## Error handling & resilience
 
 - Renderer crash (`render-process-gone`) → inline crash panel with reload.
+- Failed navigation (`did-fail-load` on the main frame, `ERR_ABORTED` and
+  non-http addresses excluded) → logged, and the failure panel replaces the
+  view. An `ERR_CERT_*` code offers "Continue anyway", which adds the host to
+  the allow-set the app's `certificate-error` hook consults before re-loading
+  the refused address; anything else offers a retry, which re-navigates
+  because a refused load leaves no page to reload. The certificate hook is
+  app-wide rather than a session preparer because Electron exposes no
+  per-session equivalent, as is `select-client-certificate`, whose per-host
+  choice is kept per session so profiles stay separate.
+- Unresponsive renderer (`unresponsive`/`responsive`) → panel offering to wait
+  or to `forcefullyCrashRenderer()`, which routes into the crash panel above.
+- `beforeunload` cancelling a navigation (`will-prevent-unload`) → a
+  synchronous `dialog.showMessageBoxSync`; `preventDefault()` means leave.
+  Without a handler the engine cancels the navigation silently.
+- Utility/GPU process loss (`child-process-gone`) → logged only; the engine
+  recovers on its own, but a repeatedly dying GPU process explains otherwise
+  inexplicable blank views.
+- Authentication challenge (`login`) → sign-in dialog in the asking page's
+  window, since the engine's default is to cancel every authentication. The
+  hook is app-wide for the same reason as `certificate-error`, and its state
+  is per session so profiles stay separate. Concurrent challenges to one realm
+  share a single dialog; a repeat within 15 s is worded as a refusal, which is
+  cosmetic — Electron 43 exposes no `firstAuthAttempt` to be sure with. Nothing
+  is cached by Flank: the engine's own auth cache is what keeps the dialog from
+  reappearing on every request.
 - Malformed JSON config → back up the bad file (`*.bad`), start from
   defaults.
 - Fire-and-forget tasks funnel exceptions to `debug.log` in the data folder,

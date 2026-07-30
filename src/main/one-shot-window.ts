@@ -39,7 +39,7 @@ export class OneShotWindowController extends ChromeWindow {
     this.view.onFoundInPage = (active, matches) =>
       this.notifyChrome('space:findResult', 'left', active, matches);
     extensionsAddTab(this.view.webContents, this.win);
-    this.attachContextMenu(this.view);
+    this.adoptView(this.view);
 
     this.view.navigate(startUrl);
   }
@@ -97,6 +97,8 @@ export class OneShotWindowController extends ChromeWindow {
       trail: [],
       loading: this.view.loading,
       crashed: this.view.crashed,
+      unresponsive: this.view.unresponsive,
+      loadError: this.view.loadError,
       colors: this.view.colors,
       splash: null
     };

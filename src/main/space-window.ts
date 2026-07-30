@@ -118,7 +118,7 @@ export class SpaceWindowController extends ChromeWindow {
     view.onFaviconCaptured = (pageUrl, image) => this.onLinkFavicon(view, pageUrl, image);
     view.onAppBackground = (pageUrl, css) => this.onLinkBackground(view, pageUrl, css);
     extensionsAddTab(view.webContents, this.win);
-    this.attachContextMenu(view);
+    this.adoptView(view);
   }
 
   /**
@@ -412,6 +412,8 @@ export class SpaceWindowController extends ChromeWindow {
       trail: view ? [...view.trail] : [],
       loading: view?.loading ?? false,
       crashed: view?.crashed ?? false,
+      unresponsive: view?.unresponsive ?? false,
+      loadError: view?.loadError ?? null,
       colors: view?.colors ?? null,
       splash: view?.splash ?? null
     };

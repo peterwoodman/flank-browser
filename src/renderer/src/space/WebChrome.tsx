@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { ExtensionButtonDto, SectionDto, Side, SuggestionDto } from '@shared/space-types';
+import type {
+  ExtensionButtonDto,
+  LoadErrorDto,
+  SectionDto,
+  Side,
+  SuggestionDto
+} from '@shared/space-types';
 import type { ToolbarPosition } from '@shared/types';
 import { invoke, on, send } from '../ipc';
 import { SuggestInput } from './SuggestInput';
@@ -242,6 +248,61 @@ export function WebChrome({
               </button>
             </div>
           )}
+          {section.unresponsive && !section.crashed && (
+            <div className="page-panel">
+              <span className="page-panel-title">This page is not responding</span>
+              <p>
+                <b>{hostOf(section.url)}</b> has stopped answering. It may finish what it is doing
+                if you give it longer.
+              </p>
+              <div className="page-panel-buttons">
+                <button
+                  className="button"
+                  onClick={() => void invoke('section:keepWaiting', windowId, side)}
+                >
+                  Wait
+                </button>
+                <button
+                  className="button danger"
+                  onClick={() => void invoke('section:killPage', windowId, side)}
+                >
+                  End page
+                </button>
+              </div>
+            </div>
+          )}
+          {section.loadError && !section.crashed && !section.unresponsive && (
+            <div className="page-panel">
+              <span className="page-panel-title">
+                {section.loadError.certificate
+                  ? 'This connection is not private'
+                  : 'This page could not be opened'}
+              </span>
+              <p>{describeLoadError(section.loadError)}</p>
+              <div className="page-panel-buttons">
+                {section.loadError.certificate ? (
+                  <button
+                    className="button"
+                    onClick={() => void invoke('section:proceedCert', windowId, side)}
+                  >
+                    Continue anyway
+                  </button>
+                ) : (
+                  <button
+                    className="button"
+                    onClick={() => void invoke('section:refresh', windowId, side)}
+                  >
+                    Try again
+                  </button>
+                )}
+              </div>
+              {section.loadError.certificate && (
+                <span className="page-panel-note">
+                  This host stays trusted until Flank quits. Only continue somewhere you know.
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -255,4 +316,77 @@ export function WebChrome({
       )}
     </div>
   );
+}
+
+/** Puts the engine's error code for a failed navigation into plain words. */
+function describeLoadError(error: LoadErrorDto): string {
+  if (error.certificate) {
+    return `The certificate ${error.host} presented ${certReason(error.code)}, so Flank cannot tell whether the site is the one it claims to be.`;
+  }
+  if (error.code === 'ERR_INTERNET_DISCONNECTED') {
+    return 'This computer is not connected to a network.';
+  }
+  return `${error.host} ${reachReason(error.code)}.`;
+}
+
+/** The middle of "The certificate example.com presented …". */
+function certReason(code: string): string {
+  switch (code) {
+    case 'ERR_CERT_DATE_INVALID':
+      return 'has expired, or is not valid yet';
+    case 'ERR_CERT_AUTHORITY_INVALID':
+      return 'comes from an authority Flank does not trust, as a self-signed one does';
+    case 'ERR_CERT_COMMON_NAME_INVALID':
+      return 'was issued for a different address';
+    case 'ERR_CERT_REVOKED':
+      return 'was withdrawn by the authority that issued it';
+    case 'ERR_CERT_WEAK_SIGNATURE_ALGORITHM':
+      return 'is signed with an algorithm no longer considered safe';
+    case 'ERR_CERT_INVALID':
+      return 'could not be read';
+    default:
+      return `failed the engine check ${code}`;
+  }
+}
+
+/** The middle of "example.com …". */
+function reachReason(code: string): string {
+  switch (code) {
+    case 'ERR_CONNECTION_REFUSED':
+      return 'refused the connection — nothing is listening on that address and port';
+    case 'ERR_NAME_NOT_RESOLVED':
+      return 'has no address: the name could not be looked up';
+    case 'ERR_CONNECTION_TIMED_OUT':
+    case 'ERR_TIMED_OUT':
+      return 'took too long to answer';
+    case 'ERR_CONNECTION_RESET':
+    case 'ERR_CONNECTION_CLOSED':
+    case 'ERR_CONNECTION_ABORTED':
+      return 'closed the connection before answering';
+    case 'ERR_EMPTY_RESPONSE':
+      return 'answered with nothing at all';
+    case 'ERR_ADDRESS_UNREACHABLE':
+      return 'could not be reached from this network';
+    case 'ERR_SSL_PROTOCOL_ERROR':
+    case 'ERR_SSL_VERSION_OR_CIPHER_MISMATCH':
+      return 'and Flank could not agree on how to secure the connection';
+    case 'ERR_TOO_MANY_REDIRECTS':
+      return 'redirected the request round in circles';
+    case 'ERR_BLOCKED_BY_CLIENT':
+      return 'was blocked by an extension';
+    case 'ERR_INVALID_AUTH_CREDENTIALS':
+      return 'did not accept the sign-in';
+    case 'ERR_NETWORK_CHANGED':
+      return 'was interrupted when the network changed';
+    default:
+      return `could not be reached (${code})`;
+  }
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return 'This page';
+  }
 }

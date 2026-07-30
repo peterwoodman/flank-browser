@@ -260,8 +260,16 @@ on the app's manifest `background_color` (a theme-neutral canvas when the app
 declares none). It clears as soon as the page is ready (the same signals that
 clear the load bar).
 
-A crashed renderer replaces the view with an inline "page crashed" panel and
-a Reload button.
+When a page is not there to show, a panel takes the view's place in the same
+hole, centered, with the action that answers it (`behaviors.md` → When a page
+doesn't arrive):
+
+- **A crashed renderer** — "This page crashed", with Reload.
+- **A navigation that failed** — the host and what happened to it in plain
+  words, with **Try again**; or, when a certificate was refused, what is wrong
+  with it and **Continue anyway**, noted as trusting the host until Flank
+  quits.
+- **A page that stopped responding** — **Wait** or **End page**.
 
 #### Trail flyout
 
@@ -321,7 +329,8 @@ It is the space window's web view with everything space-specific taken out:
 - The toolbar keeps **Back**, **Refresh**, and the **extension icons** —
   extensions are what make signing in here work — and follows the same toolbar
   position setting as a space window. Adaptive page colors, the load bar, the
-  crash panel, find-in-page, downloads, permission and screen-share dialogs, and
+  panels for a page that crashed, failed, or stopped responding, find-in-page,
+  downloads, the sign-in, certificate, permission and screen-share dialogs, and
   popup windows all behave as they do in a space.
 
 What it opens on is a setting (Manager → Settings → *1-shot window opens on*):

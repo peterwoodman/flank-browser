@@ -1,7 +1,8 @@
 import { BrowserWindow, Session, WebContentsView, ipcMain } from 'electron';
 import { TrailEntry, TRAIL_CAP } from '@shared/types';
-import { PageColors, SplashDto } from '@shared/space-types';
+import { LoadErrorDto, PageColors, SplashDto } from '@shared/space-types';
 import { contentPreloadPath } from './renderer-url';
+import { allowCertificateHost } from './certificates';
 import { isPopupTarget, isWebUrl } from './navigation-input';
 import { readManifest } from './manifest-info';
 import { captureBestFavicon } from './favicons';
@@ -69,7 +70,13 @@ export class ContentView {
   splash: SplashDto | null = null;
   loading = false;
   crashed = false;
+  /** Set between the engine reporting a hung page and it answering again. */
+  unresponsive = false;
+  /** What stopped the last navigation becoming a page, until the next one. */
+  loadError: LoadErrorDto | null = null;
 
+  /** Set while Flank is unloading the page itself, so nobody is asked to confirm. */
+  private unloadForced = false;
   private hostNavigationPending = false;
   private suppressTrailAppend = false;
   private lastFormSubmit = 0;
@@ -83,6 +90,12 @@ export class ContentView {
   onChanged: () => void = () => {};
   /** Pinned view only: a user navigation that leaves the pinned page. */
   onNavigateAway: (url: string) => void = () => {};
+  /**
+   * The page asked to stay put; owner asks the user whether to leave anyway.
+   * Answered synchronously because the engine decides the moment it returns.
+   * Defaults to leaving — an unowned view has nobody to ask.
+   */
+  onConfirmLeave: () => boolean = () => true;
   onNewWindow: (url: string) => void = () => {};
   /** The page opened a real popup window (auth flows); owner adopts it. */
   onPopupCreated: (popup: BrowserWindow) => void = () => {};
@@ -157,6 +170,9 @@ export class ContentView {
       // The host navigation is underway; from here on, will-navigate events
       // are the user's own and must go through routing.
       this.hostNavigationPending = false;
+      // A fresh attempt: whatever stopped the last one is no longer what this
+      // view is showing.
+      this.loadError = null;
       this.setLoading(true);
     });
 
@@ -202,12 +218,45 @@ export class ContentView {
       this.onChanged();
     });
 
-    wc.on('did-fail-load', (_event, code, description, _url, isMainFrame) => {
+    wc.on('did-fail-load', (_event, code, description, url, isMainFrame) => {
       if (!isMainFrame) return;
       this.hostNavigationPending = false;
       this.suppressTrailAppend = false;
       this.setLoading(false);
-      if (code !== -3) log(`navigation failed: ${description} (${code})`); // -3 = aborted
+      // ERR_ABORTED is routine: in-flight redirects, replaced navigations, and
+      // a link that turned out to be a download all end this way.
+      if (code === -3) return;
+      log(`navigation failed: ${description} (${code})`);
+      // A failed navigation leaves the view empty with nothing said, so the
+      // chrome reports it instead — for the addresses a page was expected of.
+      if (!url.startsWith('http')) return;
+      this.loadError = {
+        url,
+        host: hostOf(url),
+        code: description,
+        certificate: description.startsWith('ERR_CERT_')
+      };
+      this.onChanged();
+    });
+
+    // A page stops answering (a runaway script, a blocked main thread): the
+    // chrome offers to keep waiting or end it, since the view itself can no
+    // longer be clicked out of.
+    wc.on('unresponsive', () => {
+      this.unresponsive = true;
+      this.setLoading(false);
+      this.onChanged();
+    });
+    wc.on('responsive', () => {
+      this.unresponsive = false;
+      this.onChanged();
+    });
+
+    // The page's own beforeunload asked to stay (unsaved changes). The engine
+    // cancels the navigation silently unless this is answered, so the owner
+    // puts the question to the user; preventDefault means "leave".
+    wc.on('will-prevent-unload', (event) => {
+      if (this.unloadForced || this.onConfirmLeave()) event.preventDefault();
     });
 
     wc.on('page-title-updated', (_event, title) => {
@@ -221,6 +270,7 @@ export class ContentView {
       if (details.reason === 'clean-exit') return;
       logError('renderer crashed', new Error(details.reason));
       this.crashed = true;
+      this.unresponsive = false; // a gone renderer is no longer merely hung
       this.setLoading(false);
     });
 
@@ -305,9 +355,15 @@ export class ContentView {
     return url.startsWith('http') ? url : '';
   }
 
-  navigate(url: string, options?: { suppressTrail?: boolean }): void {
+  /**
+   * `force` marks a navigation as Flank unloading the page rather than the
+   * user leaving it, so a page with unsaved work is not put to the user as a
+   * question they did not ask.
+   */
+  navigate(url: string, options?: { suppressTrail?: boolean; force?: boolean }): void {
     this.hostNavigationPending = true;
     this.suppressTrailAppend = options?.suppressTrail ?? false;
+    this.unloadForced = options?.force ?? false;
     this.crashed = false;
     // ERR_ABORTED (-3) is routine: in-flight redirects and replaced
     // navigations reject the promise without anything being wrong.
@@ -327,7 +383,7 @@ export class ContentView {
     this.pageTitle = '';
     this.colors = null;
     this.splash = null;
-    this.navigate('about:blank', { suppressTrail: true });
+    this.navigate('about:blank', { suppressTrail: true, force: true });
   }
 
   /** Releases the underlying browser (evicted tab / closing window). */
@@ -337,10 +393,46 @@ export class ContentView {
     this.webContents.close();
   }
 
+  /**
+   * Reload, or retry the address that failed — a load the engine refused
+   * leaves no page behind to reload, so the failure panel's retry and the
+   * toolbar's Refresh both come back here and navigate afresh.
+   */
   reload(): void {
     this.crashed = false;
+    if (this.loadError) {
+      this.navigate(this.loadError.url, { suppressTrail: true });
+      return;
+    }
     this.webContents.reload();
     this.onChanged();
+  }
+
+  /**
+   * The user accepted the certificate the panel named: the host is trusted for
+   * the rest of the run and the refused page is loaded.
+   */
+  proceedThroughCertificate(): void {
+    if (!this.loadError?.certificate) return;
+    allowCertificateHost(this.loadError.host);
+    this.navigate(this.loadError.url);
+  }
+
+  /** "Wait": the page may yet answer, so put the panel away and let it. */
+  keepWaiting(): void {
+    if (!this.unresponsive) return;
+    this.unresponsive = false;
+    this.onChanged();
+  }
+
+  /**
+   * "End page": a renderer that has stopped answering cannot be asked to close
+   * politely, so it is crashed deliberately — which lands in the crash panel,
+   * where a reload starts the page over.
+   */
+  killPage(): void {
+    log(`page ended while unresponsive: ${this.currentUrl() || 'about:blank'}`);
+    this.webContents.forcefullyCrashRenderer();
   }
 
   goBackInEngine(): void {
@@ -499,4 +591,12 @@ export class ContentView {
 
   /** A home link's tab: manifest background captured for the splash. */
   onAppBackground: (pageUrl: string, cssColor: string) => void = () => {};
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return '';
+  }
 }

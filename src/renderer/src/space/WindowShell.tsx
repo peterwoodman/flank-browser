@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { on, send } from '../ipc';
 import { OverlayContext, OverlayController } from './overlay';
+import { AuthAnswerDto, AuthDialog, AuthPromptDto } from './AuthDialog';
+import { ClientCertDialog, ClientCertPromptDto } from './ClientCertDialog';
 import { ScreenShareDialog, ScreenSharePromptDto } from './ScreenShareDialog';
 
 interface DownloadNotice {
@@ -19,7 +21,8 @@ interface PermissionPromptDto {
 /**
  * What every browsing window's chrome wears around its panes: the title bar
  * with its download pill, and the dialogs the main process raises on any page
- * (permissions, screen sharing). The panes themselves are the caller's.
+ * (permissions, screen sharing, sign-in). The panes themselves are the
+ * caller's.
  */
 export function WindowShell({
   windowId,
@@ -91,6 +94,37 @@ export function WindowShell({
     setSharePrompt(null);
   };
 
+  // Sign-in challenges are not serialized in main — each one is a request
+  // genuinely waiting on an answer — so they queue here and are asked in turn.
+  const [authPrompts, setAuthPrompts] = useState<AuthPromptDto[]>([]);
+  useEffect(() => {
+    return on('space:authPrompt', (...args) => {
+      setAuthPrompts((prev) => [...prev, args[0] as AuthPromptDto]);
+    });
+  }, []);
+
+  const answerAuth = (answer: AuthAnswerDto | null): void => {
+    const current = authPrompts[0];
+    if (!current) return;
+    send('auth:respond', windowId, current.id, answer);
+    setAuthPrompts((prev) => prev.filter((p) => p.id !== current.id));
+  };
+
+  // Client certificate choices queue the same way, for the same reason.
+  const [certPrompts, setCertPrompts] = useState<ClientCertPromptDto[]>([]);
+  useEffect(() => {
+    return on('space:clientCertPrompt', (...args) => {
+      setCertPrompts((prev) => [...prev, args[0] as ClientCertPromptDto]);
+    });
+  }, []);
+
+  const answerClientCert = (fingerprint: string | null): void => {
+    const current = certPrompts[0];
+    if (!current) return;
+    send('clientCert:respond', windowId, current.id, fingerprint);
+    setCertPrompts((prev) => prev.filter((p) => p.id !== current.id));
+  };
+
   const latest = downloads[downloads.length - 1];
 
   return (
@@ -128,6 +162,16 @@ export function WindowShell({
           </div>
         )}
         {sharePrompt && <ScreenShareDialog prompt={sharePrompt} onAnswer={answerScreenShare} />}
+        {authPrompts[0] && (
+          <AuthDialog key={authPrompts[0].id} prompt={authPrompts[0]} onAnswer={answerAuth} />
+        )}
+        {certPrompts[0] && (
+          <ClientCertDialog
+            key={certPrompts[0].id}
+            prompt={certPrompts[0]}
+            onAnswer={answerClientCert}
+          />
+        )}
       </div>
     </OverlayContext.Provider>
   );

@@ -6,10 +6,18 @@ import {
   Session,
   WebContentsView,
   clipboard,
+  dialog,
   nativeTheme
 } from 'electron';
 import { WindowPlacement } from '@shared/types';
-import { OneShotStateDto, PageColors, Rect, Side, SpaceStateDto } from '@shared/space-types';
+import {
+  ClientCertDto,
+  OneShotStateDto,
+  PageColors,
+  Rect,
+  Side,
+  SpaceStateDto
+} from '@shared/space-types';
 import { ContentView } from './content-view';
 import { settingsStore } from './stores/settings-store';
 import { applyRestoredPosition, windowOptionsFrom } from './placement';
@@ -18,6 +26,7 @@ import { isPopupTarget, isWebUrl } from './navigation-input';
 import { titleBarOverlayColors, windowIcon } from './manager-window';
 import { newId } from './ids';
 import { log } from './log';
+import { AuthAnswer, AuthPrompt } from './http-auth';
 import { PermissionPrompt } from './permissions';
 import { ScreenSharePrompt } from './screen-share';
 import { extensionActivation, extensionsAddTab, extensionsSelectTab } from './extensions';
@@ -63,8 +72,13 @@ export abstract class ChromeWindow {
   protected readonly attached = new Set<ContentView>();
   protected overlayActive = false;
   protected chromeReady = false;
+  /** Settles when the chrome can be sent messages, or when the window is gone. */
+  private readonly chromeReadyWait: Promise<void>;
+  private releaseChromeWait: () => void = () => {};
   private pushQueued = false;
   private readonly permissionResolvers = new Map<string, (allow: boolean) => void>();
+  private readonly authResolvers = new Map<string, (answer: AuthAnswer | null) => void>();
+  private readonly clientCertResolvers = new Map<string, (fingerprint: string | null) => void>();
   private screenShareResolver: ((choice: string | null) => void) | null = null;
   /** Last colors the chrome reported for the window's leading page; null on home. */
   protected chromeColors: PageColors | null = null;
@@ -75,6 +89,7 @@ export abstract class ChromeWindow {
   constructor(opts: ChromeWindowOptions) {
     this.id = opts.id;
     this.session = opts.session;
+    this.chromeReadyWait = new Promise((resolve) => (this.releaseChromeWait = resolve));
 
     const placement = windowOptionsFrom(opts.placement, opts.defaultSize);
     this.win = new BaseWindow({
@@ -113,6 +128,7 @@ export abstract class ChromeWindow {
     // time its hooks are asked for state.
     this.chromeView.webContents.once('did-finish-load', () => {
       this.chromeReady = true;
+      this.releaseChromeWait();
       if (placement.maximized) this.win.maximize();
       this.win.show();
       if (!placement.maximized) applyRestoredPosition(this.win, placement);
@@ -124,8 +140,13 @@ export abstract class ChromeWindow {
     this.win.on('resize', () => this.fitChromeView());
     this.win.on('close', () => this.onWindowClose());
     this.win.on('closed', () => {
+      this.releaseChromeWait(); // nothing may wait on a chrome that will never load
       for (const resolve of this.permissionResolvers.values()) resolve(false);
       this.permissionResolvers.clear();
+      for (const resolve of this.authResolvers.values()) resolve(null);
+      this.authResolvers.clear();
+      for (const resolve of this.clientCertResolvers.values()) resolve(null);
+      this.clientCertResolvers.clear();
       this.resolveScreenShare(null);
       this.onWindowClosed();
       this.onClosed();
@@ -195,9 +216,11 @@ export abstract class ChromeWindow {
         extensionsSelectTab(view.webContents); // now the window's active tab
       }
       if (rect) view.view.setBounds(rect);
-      // Splash and crash panels paint in the chrome's hole under the view,
-      // so the view hides while either is up.
-      view.view.setVisible(!!rect && !view.crashed && !view.splash);
+      // Splash, crash, failure, and unresponsive panels paint in the chrome's
+      // hole under the view, so the view hides while any of them is up.
+      view.view.setVisible(
+        !!rect && !view.crashed && !view.splash && !view.loadError && !view.unresponsive
+      );
     }
   }
 
@@ -230,6 +253,20 @@ export abstract class ChromeWindow {
 
   goBack(side: Side): void {
     this.sectionView(side)?.goBackInEngine();
+  }
+
+  /** The certificate panel's "Continue anyway". */
+  proceedThroughCertificate(side: Side): void {
+    this.sectionView(side)?.proceedThroughCertificate();
+  }
+
+  /** The unresponsive panel's two answers. */
+  keepWaiting(side: Side): void {
+    this.sectionView(side)?.keepWaiting();
+  }
+
+  killPage(side: Side): void {
+    this.sectionView(side)?.killPage();
   }
 
   find(side: Side, text: string, forward: boolean, findNext: boolean): void {
@@ -324,6 +361,52 @@ export abstract class ChromeWindow {
     resolve?.(allow);
   }
 
+  // --- HTTP authentication ---
+
+  /**
+   * Shows the sign-in dialog for a server's authentication challenge;
+   * resolves with the credentials, or null if the user declined. Unlike
+   * permissions these are not serialized app-wide: a challenge blocks the
+   * request that met it, so a second one is a second page genuinely waiting.
+   */
+  async showAuthPrompt(prompt: AuthPrompt): Promise<AuthAnswer | null> {
+    // A 1-shot window starts loading before its chrome does, so a challenge
+    // can arrive with nowhere to show it yet. The request behind it is waiting
+    // regardless, so the dialog waits for the chrome rather than being lost.
+    await this.chromeReadyWait;
+    if (this.win.isDestroyed()) return null;
+    return new Promise((resolve) => {
+      const id = newId();
+      this.authResolvers.set(id, resolve);
+      this.notifyChrome('space:authPrompt', { id, ...prompt });
+    });
+  }
+
+  resolveAuth(id: string, answer: AuthAnswer | null): void {
+    const resolve = this.authResolvers.get(id);
+    this.authResolvers.delete(id);
+    resolve?.(answer);
+  }
+
+  // --- Client certificates ---
+
+  /** Asks which certificate to identify with; resolves to a fingerprint or null. */
+  async showClientCertPrompt(certificates: ClientCertDto[]): Promise<string | null> {
+    await this.chromeReadyWait;
+    if (this.win.isDestroyed()) return null;
+    return new Promise((resolve) => {
+      const id = newId();
+      this.clientCertResolvers.set(id, resolve);
+      this.notifyChrome('space:clientCertPrompt', { id, certificates });
+    });
+  }
+
+  resolveClientCert(id: string, fingerprint: string | null): void {
+    const resolve = this.clientCertResolvers.get(id);
+    this.clientCertResolvers.delete(id);
+    resolve?.(fingerprint);
+  }
+
   /**
    * Shows the screen-share picker; resolves with the chosen source (or kind,
    * where the system portal picks) and null when the user declines. A second
@@ -393,6 +476,31 @@ export abstract class ChromeWindow {
   }
 
   // --- Content context menu ---
+
+  /** The wiring every window type gives a page of its own. */
+  protected adoptView(view: ContentView): void {
+    this.attachContextMenu(view);
+    view.onConfirmLeave = () => this.confirmLeave();
+  }
+
+  /**
+   * A page with unsaved work asked to stay. The engine wants the answer before
+   * this returns — there is no waiting for a React dialog and no cancelling
+   * the navigation afterwards — so this is the one prompt Flank asks with the
+   * platform's own message box.
+   */
+  private confirmLeave(): boolean {
+    const choice = dialog.showMessageBoxSync(this.win, {
+      type: 'question',
+      buttons: ['Leave', 'Stay'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Leave this page?',
+      message: 'Leave this page?',
+      detail: 'Changes you have made may not be saved.'
+    });
+    return choice === 0;
+  }
 
   /**
    * Content context menu — the engine ships none. Kept minimal: link/image

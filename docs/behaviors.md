@@ -340,6 +340,55 @@ The browser engine's default download experience is used as-is: downloads go
 to the user's Downloads folder and progress shows in the engine's built-in
 download UI. No custom download manager.
 
+## When a page doesn't arrive
+
+A navigation that fails leaves the engine showing nothing and saying nothing,
+so Flank puts a panel in the view's place (`ui.md` → Web view) rather than
+letting a blank rectangle stand for an answer. Every case below is also
+written to `debug.log`.
+
+- **The site could not be reached** — connection refused, name not resolved,
+  timed out, connection reset, too many redirects, blocked by an extension,
+  and the rest. The panel names the host, says which of those happened in
+  plain words, and offers **Try again**, which re-navigates to the address
+  that failed. Toolbar Refresh does the same thing on a failed page, since
+  there is no loaded page to reload.
+- **The certificate is not acceptable** — the panel says what is wrong with it
+  (expired, self-signed, issued for another address) and offers **Continue
+  anyway** instead of a retry. Continuing trusts that **host** for the rest of
+  the run, in every window and profile, and loads the refused address. The
+  allowance is held in memory only: a certificate trusted forever is a decision
+  no one revisits, so quitting Flank forgets it. A self-hosted service on an
+  expired or self-signed certificate is the case this exists for; a public site
+  failing this way is worth a second thought, which is why the panel says so
+  rather than offering a one-click bypass.
+- **The page stopped responding** — a runaway script or a blocked main thread.
+  The panel offers **Wait**, which puts it away and lets the page carry on, and
+  **End page**, which ends the renderer (a hung one cannot be asked to close
+  politely) and lands in the crash panel, where Reload starts the page over.
+  If the page answers again on its own, the panel goes by itself.
+- **The renderer crashed** — the crash panel, with Reload.
+
+An aborted navigation is not a failure and shows nothing: in-flight redirects,
+a navigation replaced by another, and a link that turned out to be a download
+all end that way.
+
+## Leaving a page with unsaved work
+
+A page whose `beforeunload` handler asks to cancel a navigation gets a
+**Leave / Stay** confirmation naming the risk to unsaved changes. This is the
+one prompt Flank asks with the platform's own message box rather than its
+chrome: the engine wants the answer synchronously and cancels the navigation
+if nothing answers, which is how the navigation would otherwise appear to do
+nothing at all.
+
+The question is asked when a navigation would unload the page. Closing a
+window does not ask — the engine does not consult a page's `beforeunload` for
+the views Flank browses in — and neither does Flank unloading a page itself,
+whether parking a hidden section or evicting an idle background tab. Those are
+Flank's own housekeeping, not the user leaving, and there is no answer to
+"stay" that Flank could act on.
+
 ## Media, permissions, and dialogs
 
 - Permission prompts (camera, mic, location, notifications, clipboard,
@@ -356,6 +405,28 @@ download UI. No custom download manager.
   The exceptions are engine plumbing a dialog could not sensibly describe:
   fullscreen, storage persistence, background sync, wake lock, and the DRM
   handshake protected video needs before it will play.
+- A server's HTTP authentication challenge (basic auth, and the same from a
+  proxy) opens a sign-in dialog naming who is asking — the challenging host
+  and its realm, which need not be the address on screen, since a subresource
+  or a proxy can be the one asking — and warns when the connection is plain
+  `http`, where the credentials would cross the network readable. Cancelling
+  leaves the request unauthenticated, which is what the site sees as a refused
+  sign-in. Requests the browser makes with no page behind them (favicon
+  probes, search suggestions) are never authenticated and raise no dialog.
+- A server asking the browser to identify *itself* with a certificate (mutual
+  TLS) opens a picker of the certificates installed on the machine, each with
+  its subject, issuer, and expiry, and a **Send none** answer — which is a real
+  answer the server may accept or refuse, not a way of dodging the question.
+  The choice is remembered per host for the run, and per profile, since which
+  identity is presented is exactly what a profile separates. Left to itself the
+  engine sends the first certificate in the store without asking, which with
+  more than one installed is as likely to be the wrong identity as the right
+  one.
+- Flank remembers no credentials. The engine caches what a server accepts for
+  the life of the profile's partition and re-sends it without asking, so the
+  dialog appears only when nothing is cached or what was cached was refused —
+  and a sign-in in one profile is never offered to another. Nothing is written
+  to disk; quitting forgets it all.
 - Screen sharing (a page calling `getDisplayMedia`, e.g. presenting in a
   video call) opens a picker of the screens and open windows, each with a
   preview; the page receives the one source chosen and nothing else. The
