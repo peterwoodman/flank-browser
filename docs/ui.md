@@ -56,33 +56,30 @@ There is no system tray or background residency; windows are the only UI.
 
 - **Launching Flank** (Start menu, pinned icon) reopens the spaces that
   were open in the last session, with the **Manager window** — the front door
-  and launcher — minimized behind them; with none to restore the Manager opens
+  and launcher — behind them; with none to restore the Manager opens
   in front. If Flank is already running, a second launch focuses an open window
   instead (single instance).
 - **`--space <name or id>`** as a command-line argument opens that
   space directly (names are matched case-insensitively; quoted names with
   spaces work). This enables pinned per-space shortcuts, and it also
   routes into the running instance.
-- **The Manager stays open behind the spaces**, minimized whenever a space
-  window opens — the hub is always one window away, and closing the last space
-  window restores it rather than leaving you with nothing. It is a real window,
-  not a hidden one, so the desktop lists it and treats it like any other: that
-  is what keeps leaving Flank predictable, with no guessing about who closed a
-  window. Closing the Manager itself while a space is open takes the hub away
-  until the next space opens.
+- **The Manager stays open behind the spaces** — a space window simply opens
+  in front of it, and Flank never minimizes or otherwise rearranges it on its
+  own — so the hub is always one window away, and closing the last space
+  window brings it forward rather than leaving you with nothing. It is a real
+  window, not a hidden one, so the desktop lists it and treats it like any
+  other: that is what keeps leaving Flank predictable, with no guessing about
+  who closed a window. Closing the Manager itself while a space is open takes
+  the hub away until the next space opens.
 - **The Spaces button** (grid icon) belongs to the **left** section — at the
   far end of its toolbar when it shows a page, and in the bottom-left corner of
   its home view. It brings the Manager back up. Spaces are switched through the
   Manager rather than from a menu inside the space window, so there is one place
   where every space lives.
 - **Closing the last window exits Flank** — including the desktop's "close all
-  windows", which reaches the minimized Manager along with the space windows.
+  windows", which reaches the background Manager along with the space windows.
   Sessions are saved on every window close (and autosaved), so reopening a space
   restores its pages.
-
-> **Linux:** minimizing is a request the window manager may decline (and Wayland
-> compositors need not implement it at all), so the Manager may simply sit
-> behind the space window instead of being tucked away.
 
 ## Manager window
 

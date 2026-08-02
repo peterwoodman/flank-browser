@@ -35,20 +35,18 @@ export function titleBarOverlayColors(schemeId?: string): {
 }
 
 /** Where the Manager sits once it has been asked for. */
-export type ManagerMode = 'focus' | 'minimized';
+export type ManagerMode = 'focus' | 'background';
 
 /**
  * Opens the Manager window (at most one instance), or brings the open one
- * forward. `'minimized'` leaves it minimized instead — the hub waiting behind a
- * space window rather than covering the screen, while still holding the window
- * (and its taskbar entry) that exiting Flank goes through; see `openSpace` in
- * `window-manager`.
+ * forward. `'background'` makes sure it exists without disturbing it — the hub
+ * behind a space window, holding the window (and its taskbar entry) that
+ * exiting Flank goes through, but never minimized or raised on Flank's own
+ * initiative; see `openSpace` in `window-manager`.
  */
 export function openManager(mode: ManagerMode = 'focus'): BrowserWindow {
   if (managerWindow) {
-    if (mode === 'minimized') {
-      managerWindow.minimize();
-    } else {
+    if (mode === 'focus') {
       if (managerWindow.isMinimized()) managerWindow.restore();
       managerWindow.focus();
     }
@@ -78,16 +76,10 @@ export function openManager(mode: ManagerMode = 'focus'): BrowserWindow {
 
   if (opts.maximized) win.maximize();
   win.once('ready-to-show', () => {
-    if (mode === 'minimized') {
-      // Minimizing a window that has never been shown does not reliably give it
-      // a taskbar entry, and the entry is the point of keeping the hub open, so
-      // show it first — without taking focus from the space window opening.
-      win.showInactive();
-      if (!opts.maximized) applyRestoredPosition(win, opts);
-      win.minimize();
-      return;
-    }
-    win.show();
+    // In background mode, show without taking focus from the space window
+    // that is opening; the space window comes up in front of it.
+    if (mode === 'background') win.showInactive();
+    else win.show();
     if (!opts.maximized) applyRestoredPosition(win, opts);
   });
   loadChromeRoute(win.webContents, 'manager');

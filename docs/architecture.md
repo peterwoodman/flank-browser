@@ -31,8 +31,9 @@ the Manager window as the launcher. Each space window is an Electron
 - **Lifetime.** The app exits when its last window closes
   (`window-all-closed` → `app.quit()`). Landing at the Manager after closing a
   space window is *not* an exception to that: `openSpace` keeps the Manager open
-  (minimized) behind every space window, so the hub is restored rather than
-  recreated, and an empty window list is unambiguously "leave". A hidden window
+  behind every space window (untouched — never minimized by Flank itself), so
+  the hub is brought forward rather than recreated, and an empty window list is
+  unambiguously "leave". A hidden window
   would not do — the shell's "close all windows" only reaches windows it lists,
   so Flank would survive it invisibly, with no tray to get back in through. The
   Manager is never recreated on a space window's close, or that same teardown

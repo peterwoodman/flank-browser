@@ -89,8 +89,8 @@ Design rules:
   final window close of a session is not recorded (that ends the session,
   rather than meaning you are done with the space).
 - `managerWindow` — the Manager window's last bounds (spaces keep theirs
-  in `spaces.json`). Never captured while it is minimized behind a space
-  window, so being tucked away does not overwrite where it sits.
+  in `spaces.json`). Never captured while it is minimized, so being tucked
+  away does not overwrite where it sits.
 - `permissions` — remembered allow/deny answers, keyed by origin then permission
   name, written the first time a prompt is answered. The engine keeps no such
   memory, and these answers also settle the silent checks web APIs make before

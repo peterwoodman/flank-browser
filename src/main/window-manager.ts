@@ -71,13 +71,13 @@ export async function openSpace(spaceId: string): Promise<void> {
     return;
   }
 
-  // The Manager stays open behind the spaces as Flank's hub, minimized out of
-  // the way. Keeping it a real window is what makes leaving Flank predictable:
-  // the desktop's "close all windows" reaches it like any other window, and the
-  // window list emptying always means "exit", never "show me the hub". It gets
-  // out of the way before the profile is prepared below, so clicking a tile
-  // still responds at once.
-  openManager('minimized');
+  // The Manager stays open behind the spaces as Flank's hub. Keeping it a real
+  // window is what makes leaving Flank predictable: the desktop's "close all
+  // windows" reaches it like any other window, and the window list emptying
+  // always means "exit", never "show me the hub". It is never minimized (or
+  // otherwise rearranged) by Flank itself — the space window simply opens in
+  // front of it, and where it sits is the user's business.
+  openManager('background');
 
   const existing = controllers.get(spaceId);
   if (existing) {

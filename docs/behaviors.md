@@ -171,7 +171,7 @@ A 1-shot window is a single free-browsing page, opened from a space window's
 ## Startup
 
 - A plain launch reopens the spaces that were open in the last session
-  (`openSpaces` in settings), with the Manager minimized behind them. Closing a
+  (`openSpaces` in settings), with the Manager behind them. Closing a
   single window mid-session removes it from that set (you're "done" with it).
   Closing the *last* space window keeps it remembered — that ends the session
   rather than saying you're done with the space — and when several
@@ -179,15 +179,16 @@ A 1-shot window is a single free-browsing page, opened from a space window's
   or a shutdown), the whole burst is remembered so they all reopen, not just the
   last one to close. With nothing to restore, the Manager window opens in front.
 - `--space <name or id>` opens exactly that space instead (no
-  session restore of the others), again with the Manager minimized behind it.
+  session restore of the others), again with the Manager behind it.
 - Optional "launch at login" setting; at login this restores last session's
   spaces like any plain launch.
 - The Manager window remembers its own size/position (in settings).
 - Second launches route into the running instance: with `--space` they
   open/focus that space, otherwise they focus an open window (or the
   Manager).
-- Opening a space minimizes the Manager; closing the last space window restores
-  it. The Manager is only ever *recreated* by a launch or by opening a space, so
+- Opening a space leaves the Manager where it is (the space window just opens
+  in front; Flank never minimizes it); closing the last space window brings it
+  forward. The Manager is only ever *recreated* by a launch or by opening a space, so
   closing every window (Flank's own last-window-closes exit, or the desktop's
   "close all windows") exits rather than bringing the hub back.
 
