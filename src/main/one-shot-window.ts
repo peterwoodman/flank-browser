@@ -94,6 +94,7 @@ export class OneShotWindowController extends ChromeWindow {
       // No home to hide it for, and no pinning it away: this window is
       // always somewhere it can say out loud.
       showAddressBar: true,
+      showPinButton: false, // no home grid to pin to
       trail: [],
       loading: this.view.loading,
       crashed: this.view.crashed,

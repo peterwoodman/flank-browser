@@ -331,6 +331,21 @@ export class SpaceWindowController extends ChromeWindow {
     if (!image) fireAndForget('pin icon fallback', this.refreshFavicons());
   }
 
+  /**
+   * The toolbar's address-bar toggle: flips whatever is showing now and holds
+   * that as the section's override (docs/ui.md → Web view). The override is
+   * cleared by the section, not here — when it closes or a different page is
+   * picked from home.
+   */
+  toggleAddressBar(side: Side): void {
+    const section = this.section(side);
+    if (section.mode !== 'web') return;
+    const url = section.activeView?.currentUrl() ?? '';
+    const shownNow = section.addressBarOverride ?? !this.isFromHomeLink(url);
+    section.addressBarOverride = !shownNow;
+    this.pushState();
+  }
+
   // --- Trail ---
 
   trailNavigate(side: Side, index: number): void {
@@ -399,6 +414,7 @@ export class SpaceWindowController extends ChromeWindow {
     const section = this.section(side);
     const view = section.activeView;
     const url = view?.currentUrl() ?? '';
+    const fromHomeLink = this.isFromHomeLink(url);
     return {
       side,
       open: side === 'left' || this.rightOpen,
@@ -408,7 +424,8 @@ export class SpaceWindowController extends ChromeWindow {
       canGoBack: view?.canGoBack ?? false,
       showReturnButton: side === 'right' || section.canReturnFromHome,
       returnCloses: side === 'right' && !section.canReturnFromHome,
-      showAddressBar: section.mode === 'web' && !this.isFromHomeLink(url),
+      showAddressBar: section.mode === 'web' && (section.addressBarOverride ?? !fromHomeLink),
+      showPinButton: !fromHomeLink,
       trail: view ? [...view.trail] : [],
       loading: view?.loading ?? false,
       crashed: view?.crashed ?? false,

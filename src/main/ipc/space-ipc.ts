@@ -116,6 +116,12 @@ export function registerSpaceIpc(): void {
     controller(spaceId)?.promoteToLeft();
   });
 
+  // The toolbar's address-bar toggle (space windows only; a 1-shot window's
+  // bar is always there).
+  ipcMain.handle('flank:section:toggleAddressBar', (_e, spaceId: string, side: unknown) => {
+    controller(spaceId)?.toggleAddressBar(sideOf(side));
+  });
+
   // --- Trail ---
 
   ipcMain.handle('flank:trail:navigate', (_e, spaceId: string, side: unknown, index: number) => {

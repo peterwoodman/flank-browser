@@ -12,6 +12,7 @@ import { SuggestInput } from './SuggestInput';
 import { FindBar } from './FindBar';
 import { TrailFlyout } from './TrailFlyout';
 import {
+  AddressBarIcon,
   BackIcon,
   CloseIcon,
   GridIcon,
@@ -154,6 +155,15 @@ export function WebChrome({
         >
           <RefreshIcon />
         </button>
+        {inSpace && (
+          <button
+            className="icon-button"
+            title={section.showAddressBar ? 'Hide address bar' : 'Show address bar'}
+            onClick={() => void invoke('section:toggleAddressBar', windowId, side)}
+          >
+            <AddressBarIcon />
+          </button>
+        )}
         {section.trail.length > 1 && (
           <button className="icon-button" title="Trail" onClick={() => setTrailOpen(true)}>
             <TrailIcon />
@@ -211,7 +221,7 @@ export function WebChrome({
               raiseOverlay
               onSubmit={addressSubmit}
             />
-            {inSpace && (
+            {inSpace && section.showPinButton && (
               <button
                 className="icon-button"
                 title="Pin to home"

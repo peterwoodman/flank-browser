@@ -217,6 +217,13 @@ unpinned excursions, in either section. Pages on a home link's host (redirects
 and SPA routes included) keep the minimal, bar-less chrome. The rule is
 identical for both sections, so pinning the current page always hides the bar.
 
+The toolbar's **Address bar** button overrides that default for its section:
+it flips whatever is showing now — reveal the bar on a pinned site, or hide it
+on an unpinned one — and the override holds through navigation until the
+section is closed or a different page is picked from home (returning from home
+to the same page keeps it). Without a press it changes nothing; the home-link
+rule stays in charge.
+
 Toolbar buttons, in order — top to bottom on the side, left to right on top:
 
 | Button | Placement variant | Action |
@@ -227,6 +234,7 @@ Toolbar buttons, in order — top to bottom on the side, left to right on top:
 | Back | both; visible only while the browser can go back (and the view shows an http(s) page) | Steps back through the browser engine's history — unlike the trail, this reaches SPA route changes (pushState), which the trail collapses into one entry |
 | Home | both | Switches this section to the home view |
 | Refresh | both | Reloads the current page |
+| Address bar | both | Shows/hides the section's address bar, overriding the home-link default until the section closes or a different page is picked from home |
 | Trail | both; hidden unless the view has visited more than the current page | Expands the trail flyout (history of this view) |
 | Extension icons | both | One icon per enabled extension, rendered grayscale to match the monochrome toolbar glyphs. Clicking opens the extension's popup in a small window anchored to the button — beside it, or below it when the toolbar is on top; extensions without a popup open their options page instead |
 | 1-shot window | **left** section only; at the far end of the toolbar beside Spaces, and also on the home view | Opens a 1-shot window in this space's profile (see below) |
@@ -280,7 +288,8 @@ action sits at the bottom. The trail persists across restarts (see
 
 A bar across the top of a section, styled like the toolbar (adaptive page
 colors included). Shown whenever the current page isn't from a home link —
-matching is by host, case-insensitive, ignoring a `www.` prefix.
+matching is by host, case-insensitive, ignoring a `www.` prefix — or whenever
+the toolbar's Address bar toggle says so (above).
 
 - **Address/search box** — shows the current URL; type a URL or search terms
   and Enter navigates this view in place (same URL-vs-search rules as the
@@ -290,6 +299,8 @@ matching is by host, case-insensitive, ignoring a `www.` prefix.
 - **Pin to home** button — adds the current page to this space's home
   grid (icon and title pre-filled from the page's web app manifest when it has
   one, else the live favicon and document title — see `behaviors.md` → Favicons).
+  Hidden when the page is already on a home link's host — on a bar the toggle
+  revealed over a pinned site, there is nothing left to pin.
 
 ## 1-shot window
 

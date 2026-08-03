@@ -29,6 +29,13 @@ export class Section {
   private evictionTimer: NodeJS.Timeout | null = null;
 
   readonly isLeft: boolean;
+  /**
+   * The toolbar toggle's override of the default address-bar visibility
+   * (docs/ui.md → Web view). Null means "follow the home-link rule"; it goes
+   * back to null when the section closes or a different tab is picked, so the
+   * override never outlives the browsing stretch it was made for.
+   */
+  addressBarOverride: boolean | null = null;
   private readonly space: Space;
   /** The space's profile partition; every view here browses as that profile. */
   private readonly session: Session;
@@ -85,6 +92,10 @@ export class Section {
   }
 
   private showTab(tab: Tab): void {
+    // A different page than the one this section was last showing: the
+    // address-bar override was made for that page's stretch, not this one.
+    // Returning from home to the same tab keeps it.
+    if (this.lastActiveTab !== tab) this.addressBarOverride = null;
     if (this.activeTab !== tab) {
       if (this.activeTab) this.activeTab.hiddenAt = Date.now();
       this.activeTab = tab;
@@ -250,6 +261,7 @@ export class Section {
   /** Returns to home and unloads web views (used when the section is closed). */
   reset(): void {
     this.lastActiveTab = null; // parked views are blank; nothing to return to
+    this.addressBarOverride = null; // the override ends with the section
     this.showHome();
     for (const tab of this.tabs.values()) tab.view.park();
   }

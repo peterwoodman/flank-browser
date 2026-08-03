@@ -108,6 +108,14 @@ export const PlusIcon = (): React.JSX.Element => (
   </Icon>
 );
 
+/** The address bar itself: an input pill with a text stub. */
+export const AddressBarIcon = (): React.JSX.Element => (
+  <Icon>
+    <rect x="3" y="8" width="18" height="8" rx="2" />
+    <path d="M7 12h6" />
+  </Icon>
+);
+
 export const TrailIcon = (): React.JSX.Element => (
   <Icon>
     <path d="M4 6h16" />

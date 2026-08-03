@@ -49,8 +49,11 @@ export interface SectionDto {
   showReturnButton: boolean;
   /** Home ✕ button: true = "Close view" (right, nothing to return to), false = "Back to page". */
   returnCloses: boolean;
-  /** Address bar shows when the page is not from a home link (docs/ui.md). */
+  /** Address bar shows when the page is not from a home link, unless the
+   * toolbar toggle has overridden that (docs/ui.md). */
   showAddressBar: boolean;
+  /** Pin to home: hidden when the page is already a home link. */
+  showPinButton: boolean;
   trail: TrailEntry[];
   loading: boolean;
   crashed: boolean;
