@@ -148,9 +148,10 @@ export function HomeView({
           title="Add link"
           initialTitle=""
           initialUrl=""
-          onSubmit={(title, url) => {
+          initialNavigateInPlace={false}
+          onSubmit={(title, url, navigateInPlace) => {
             setDialog(null);
-            void invoke('links:add', spaceId, { title, url });
+            void invoke('links:add', spaceId, { title, url, navigateInPlace });
           }}
           onCancel={() => setDialog(null)}
         />
@@ -160,9 +161,10 @@ export function HomeView({
           title="Edit link"
           initialTitle={dialog.link.title}
           initialUrl={dialog.link.url}
-          onSubmit={(title, url) => {
+          initialNavigateInPlace={dialog.link.navigateInPlace ?? false}
+          onSubmit={(title, url, navigateInPlace) => {
             setDialog(null);
-            void invoke('links:update', spaceId, dialog.link.id, { title, url });
+            void invoke('links:update', spaceId, dialog.link.id, { title, url, navigateInPlace });
           }}
           onCancel={() => setDialog(null)}
         />

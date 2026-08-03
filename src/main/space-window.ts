@@ -104,10 +104,19 @@ export class SpaceWindowController extends ChromeWindow {
     view.onNavigateAway = (url) => this.routeAway(view, url);
     view.onNewWindow = (url) => this.routeAway(view, url);
     view.onPopupCreated = (popup) => this.adoptPopup(popup);
-    // Shift+click flips the target section, so the link opens on the left
-    // either way: in place when the view is already the left one.
-    view.onFlipNavigation = (url) =>
-      this.sideOf(view) === 'left' ? view.navigate(url) : this.left.promote(url);
+    // Shift+click flips whatever the plain click would have done. From the
+    // left view that normally means navigating in place instead of routing
+    // right; for a navigate-in-place link's same-site target it is the
+    // reverse — shift sends it right (docs/behaviors.md).
+    view.onFlipNavigation = (url) => {
+      if (this.sideOf(view) !== 'left') {
+        this.left.promote(url);
+      } else if (this.navigatesInPlace(view, url)) {
+        this.openInRight(url);
+      } else {
+        view.navigate(url);
+      }
+    };
     view.onSplitNudge = (d) => this.nudgeSplit(d);
     view.onFindRequested = () => this.notifyChrome('space:openFind', this.sideOf(view));
     view.onFoundInPage = (active, matches) =>
@@ -124,11 +133,25 @@ export class SpaceWindowController extends ChromeWindow {
   /**
    * Routing (docs/behaviors.md): a user navigation leaving the pinned left
    * view, or a page asking for a tab, lands in the right section. The right
-   * view is the free-browsing pane and navigates in place.
+   * view is the free-browsing pane and navigates in place. A navigate-in-place
+   * link keeps same-site navigations to itself.
    */
   private routeAway(view: ContentView, url: string): void {
-    if (this.sideOf(view) === 'left') this.openInRight(url);
-    else view.navigate(url);
+    if (this.sideOf(view) !== 'left') view.navigate(url);
+    else if (this.navigatesInPlace(view, url)) view.navigate(url);
+    else this.openInRight(url);
+  }
+
+  /**
+   * Whether a navigate-in-place link's tab keeps this navigation to itself:
+   * the target is on the same site as the page currently showing, so the
+   * section acts as that site's app window (docs/behaviors.md). Judged
+   * against the current page rather than the link's saved URL, so a site
+   * that redirects (outlook.com → outlook.live.com) still holds together.
+   */
+  private navigatesInPlace(view: ContentView, url: string): boolean {
+    const link = this.space.links.find((l) => l.id === view.linkId);
+    return link?.navigateInPlace === true && sameSite(view.currentUrl(), url);
   }
 
   /** Which section is showing this view now. */
@@ -463,6 +486,18 @@ function sameAuthority(a: string, b: string): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Same site for navigate-in-place: equal hosts (case-insensitive, `www.`
+ * ignored), or one a subdomain of the other — github.com and
+ * gist.github.com are one site.
+ */
+function sameSite(a: string, b: string): boolean {
+  const ha = comparableHost(a);
+  const hb = comparableHost(b);
+  if (!ha || !hb) return false;
+  return ha === hb || ha.endsWith('.' + hb) || hb.endsWith('.' + ha);
 }
 
 function comparableHost(url: string): string {

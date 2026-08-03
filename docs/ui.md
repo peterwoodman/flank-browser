@@ -192,7 +192,8 @@ above:
   a link navigates this section to web view (see `behaviors.md` for routing).
 - Grid management: right-click a tile for Edit / Remove; a **＋ Add link**
   button below the grid — pushed to the bottom of the canvas while the links
-  don't fill it — opens a small dialog (URL, title; icon auto-fetched from
+  don't fill it — opens a small dialog (URL, title, a **Navigate in place**
+  checkbox — see `behaviors.md` → Navigation routing; icon auto-fetched from
   favicon), centered over **this section** and never obscured by the other
   section's page; tiles reorder via drag & drop.
 - An **✕ button** in the top-right returns to the page view this section was

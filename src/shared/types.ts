@@ -71,6 +71,12 @@ export interface SpaceLink {
   icon: string;
   /** Manifest background/theme color (CSS) for the launch splash; empty = theme-neutral. */
   background: string;
+  /**
+   * Same-site navigations from this link's page stay in its section instead
+   * of routing to the right one — the section acts like the site's app window
+   * (docs/behaviors.md → Navigation routing). Absent means off.
+   */
+  navigateInPlace?: boolean;
   order: number;
 }
 

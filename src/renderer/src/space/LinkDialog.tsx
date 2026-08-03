@@ -6,17 +6,20 @@ export function LinkDialog({
   title,
   initialTitle,
   initialUrl,
+  initialNavigateInPlace,
   onSubmit,
   onCancel
 }: {
   title: string;
   initialTitle: string;
   initialUrl: string;
-  onSubmit: (title: string, url: string) => void;
+  initialNavigateInPlace: boolean;
+  onSubmit: (title: string, url: string, navigateInPlace: boolean) => void;
   onCancel: () => void;
 }): React.JSX.Element {
   const [linkTitle, setLinkTitle] = useState(initialTitle);
   const [url, setUrl] = useState(initialUrl);
+  const [navigateInPlace, setNavigateInPlace] = useState(initialNavigateInPlace);
   const titleRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -24,7 +27,7 @@ export function LinkDialog({
   }, []);
 
   const submit = (): void => {
-    if (url.trim()) onSubmit(linkTitle.trim(), url.trim());
+    if (url.trim()) onSubmit(linkTitle.trim(), url.trim(), navigateInPlace);
   };
 
   return (
@@ -55,6 +58,17 @@ export function LinkDialog({
           onChange={(e) => setUrl(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && submit()}
         />
+        <label
+          className="link-dialog-check"
+          title="Links to the same site stay in this section instead of opening on the right (shift+click overrides)"
+        >
+          <input
+            type="checkbox"
+            checked={navigateInPlace}
+            onChange={(e) => setNavigateInPlace(e.target.checked)}
+          />
+          Navigate in place
+        </label>
       </div>
       <div className="modal-buttons">
         <button className="button primary" onClick={submit} disabled={!url.trim()}>

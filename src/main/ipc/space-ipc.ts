@@ -175,7 +175,7 @@ export function registerSpaceIpc(): void {
 
   ipcMain.handle(
     'flank:links:add',
-    (_e, spaceId: string, data: { title: string; url: string }) => {
+    (_e, spaceId: string, data: { title: string; url: string; navigateInPlace?: boolean }) => {
       const space = spacesStore.byId(String(spaceId));
       if (!space || !data.url?.trim()) return;
       const url = normalizeUrl(data.url.trim());
@@ -185,6 +185,7 @@ export function registerSpaceIpc(): void {
         url,
         icon: '',
         background: '',
+        navigateInPlace: data.navigateInPlace === true,
         order: space.links.length === 0 ? 0 : Math.max(...space.links.map((l) => l.order)) + 1
       });
       spacesStore.save();
@@ -194,7 +195,12 @@ export function registerSpaceIpc(): void {
 
   ipcMain.handle(
     'flank:links:update',
-    (_e, spaceId: string, linkId: string, data: { title: string; url: string }) => {
+    (
+      _e,
+      spaceId: string,
+      linkId: string,
+      data: { title: string; url: string; navigateInPlace?: boolean }
+    ) => {
       const space = spacesStore.byId(String(spaceId));
       const link = space?.links.find((l) => l.id === linkId);
       if (!space || !link || !data.url?.trim()) return;
@@ -203,6 +209,7 @@ export function registerSpaceIpc(): void {
       if (host(url) !== host(link.url)) link.icon = ''; // host changed: refetch favicon
       link.title = data.title?.trim() || url;
       link.url = url;
+      link.navigateInPlace = data.navigateInPlace === true;
       spacesStore.save();
       windowManager.refreshSpace(space.id);
     }

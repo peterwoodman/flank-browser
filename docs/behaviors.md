@@ -16,13 +16,27 @@ links land in the other.
 | Trigger | Result |
 |---|---|
 | Home grid link activated / search submitted | Navigates the **same** section from home to web view. The right section does not open. |
-| In-page link in the **left** web view causing a full top-level navigation | Opens in the **right** section (opening it if closed; replacing its current page if already open — the right view's trail keeps the replaced page recoverable). The left view stays pinned on its current page. |
+| In-page link in the **left** web view causing a full top-level navigation | Opens in the **right** section (opening it if closed; replacing its current page if already open — the right view's trail keeps the replaced page recoverable). The left view stays pinned on its current page. Exception: a **navigate-in-place** link's tab keeps same-site targets to itself (see below). |
 | SPA route changes, `#fragment` / pushState, reloads, redirects, back/forward, form submissions, and script-initiated navigations (redirect bounces, SSO hops) | Stay in place — these are the launched page doing its own thing, not leaving it. |
 | In-page link in the **right** web view | Navigates the right view in place. The right view is the free-browsing pane. |
-| Page requests a new tab (`target=_blank`, plain `window.open`) | From the left view: opens in the **right** section. From the right view: navigates the right view in place. No OS window is created. |
+| Page requests a new tab (`target=_blank`, plain `window.open`) | From the left view: opens in the **right** section, except a navigate-in-place link's same-site target, which navigates the left view. From the right view: navigates the right view in place. No OS window is created. |
 | Page requests a sized popup (`window.open` with window features — sign-in, consent, and payment flows) | Opens as a real popup window belonging to the space window, titled with the page's origin since a popup has no address bar. Only `http(s)` targets and blank ones qualify; anything else is refused. Links out of it follow the rules above. |
-| **Shift+click** on an in-page link | Flips the target section — the link opens on the **left** either way: from the left view it navigates the left view in place (instead of routing right); from the right view it opens in the left view (the right section stays open, unlike "Move page to left"). |
+| **Shift+click** on an in-page link | Flips whatever the plain click would have done. From the left view it navigates the left view in place (instead of routing right) — but a navigate-in-place link's same-site target is the reverse: shift sends it to the **right**. From the right view it opens in the left view (the right section stays open, unlike "Move page to left"). |
 | Trail entry clicked, Home/toolbar actions | Explicit Flank UI actions always act on their own view in place. |
+
+**Navigate in place** is a per-link checkbox in the Add/Edit link dialog. With
+it set, the link's section acts like the site's own app window: a user
+navigation or new-tab request whose target is on the **same site** as the page
+currently showing loads in place instead of routing right. It suits sites
+that are really one app — a shop where each search should replace the page —
+and is wrong for hub sites like GitHub, where every click should land on the
+right; that's why it is per-link. Same site means equal hosts
+(case-insensitive, `www.` ignored) or one host a subdomain of the other
+(`github.com` and `gist.github.com` are one site). It is judged against the
+current page rather than the link's saved URL, so a site that redirects
+(`outlook.com` → `outlook.live.com`) still holds together. Cross-site targets
+route right as usual, and shift+click flips the same-site default too: it
+sends the target to the right section.
 
 Form-submission detection: a content script reports `submit` events; any
 navigation within ~3 seconds of one is treated as a form navigation and stays

@@ -131,6 +131,7 @@ Design rules:
           "url": "https://en.wikipedia.org",
           "icon": "icons/3fa4.png",
           "background": "#ffffff",
+          "navigateInPlace": false,
           "order": 0
         }
       ]
@@ -157,6 +158,9 @@ Design rules:
   used as the launch splash canvas; empty means a theme-neutral splash. It's
   captured from the web app manifest when a link is pinned and refreshed
   whenever the link's app loads.
+- `navigateInPlace` keeps same-site navigations from that link's page in its
+  own section instead of routing them right (`behaviors.md` → Navigation
+  routing). Absent means off.
 - `colorScheme` is the id of the space's backdrop color scheme (see `ui.md` →
   Backdrop). An unknown id, and a space saved before the setting existed, fall
   back to the default and are rewritten on the next save.
