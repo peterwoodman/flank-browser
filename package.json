@@ -2,7 +2,7 @@
   "name": "flank",
   "productName": "Flank",
   "desktopName": "flank.desktop",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Flank — a personal, space-oriented web browser",
   "author": "Peter Woodman",
   "license": "GPL-3.0-or-later",
