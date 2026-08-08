@@ -5,8 +5,8 @@ import { ImportExtensionsDialog } from './ImportExtensionsDialog';
 
 /**
  * Settings behind the Manager's gear: search/suggest URL templates,
- * launch-at-login, toolbar position, background tab timeout, the 1-shot
- * window's start page, and extension management.
+ * launch-at-login, toolbar position, background tab timeout and keep count,
+ * the 1-shot window's start page, and extension management.
  * Extension changes take effect after an app restart.
  */
 export function SettingsPage({
@@ -19,6 +19,7 @@ export function SettingsPage({
   const [searchTemplate, setSearchTemplate] = useState(settings.searchTemplate);
   const [suggestTemplate, setSuggestTemplate] = useState(settings.suggestTemplate);
   const [tabMinutes, setTabMinutes] = useState(String(settings.backgroundTabMinutes));
+  const [tabKeepCount, setTabKeepCount] = useState(String(settings.backgroundTabKeepCount));
   const [oneShotUrl, setOneShotUrl] = useState(settings.oneShotStartUrl);
   const [extError, setExtError] = useState('');
   const [importing, setImporting] = useState(false);
@@ -27,6 +28,7 @@ export function SettingsPage({
     setSearchTemplate(settings.searchTemplate);
     setSuggestTemplate(settings.suggestTemplate);
     setTabMinutes(String(settings.backgroundTabMinutes));
+    setTabKeepCount(String(settings.backgroundTabKeepCount));
     setOneShotUrl(settings.oneShotStartUrl);
   }, [settings]);
 
@@ -40,6 +42,15 @@ export function SettingsPage({
       void invoke('settings:update', { backgroundTabMinutes: minutes }).then(onChanged);
     } else {
       setTabMinutes(String(settings.backgroundTabMinutes));
+    }
+  };
+
+  const commitTabKeepCount = (): void => {
+    const count = parseInt(tabKeepCount, 10);
+    if (Number.isFinite(count) && count >= 0) {
+      void invoke('settings:update', { backgroundTabKeepCount: count }).then(onChanged);
+    } else {
+      setTabKeepCount(String(settings.backgroundTabKeepCount));
     }
   };
 
@@ -114,6 +125,18 @@ export function SettingsPage({
           value={tabMinutes}
           onChange={(e) => setTabMinutes(e.target.value)}
           onBlur={commitTabMinutes}
+          inputMode="numeric"
+        />
+      </section>
+
+      <section className="field-row">
+        <label htmlFor="tab-keep-count">Background tabs kept loaded</label>
+        <input
+          id="tab-keep-count"
+          className="text-input number-input"
+          value={tabKeepCount}
+          onChange={(e) => setTabKeepCount(e.target.value)}
+          onBlur={commitTabKeepCount}
           inputMode="numeric"
         />
       </section>

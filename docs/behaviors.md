@@ -78,9 +78,12 @@ previous one loaded in the background. Activating the same link again resumes
 the page exactly where it was — scroll position, playing state, SPA state —
 with no reload.
 
-- Backgrounded tabs are evicted (fully unloaded) after a configurable idle
-  period (`backgroundTabMinutes` in settings, default 30). Reopening an
-  evicted link reloads the page.
+- The most recently used background tabs stay loaded for as long as the
+  section lives (`backgroundTabKeepCount` in settings, default 10). Only the
+  ones ranked below that — the least recently used — are evicted (fully
+  unloaded) once they have been idle for `backgroundTabMinutes` (default 30),
+  so a working set of pages is always warm and the long tail is not. Reopening
+  an evicted link reloads the page.
 - Each tab has its own trail.
 - A page moved in from the right takes over the tab it replaces, so it resumes
   on that link like any other (see Sections lifecycle).

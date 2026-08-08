@@ -50,6 +50,7 @@ Design rules:
   "launchAtLogin": false,
   "toolbarPosition": "side",
   "backgroundTabMinutes": 30,
+  "backgroundTabKeepCount": 10,
   "oneShotStart": "blank",
   "oneShotStartUrl": "",
   "openSpaces": ["8b1c…"],
@@ -78,6 +79,9 @@ Design rules:
   toolbar sits (see `ui.md` → Web view). Anything else falls back to `"side"`.
 - `backgroundTabMinutes` — idle time before a backgrounded left tab is
   unloaded.
+- `backgroundTabKeepCount` — how many of the most recently used background
+  tabs are exempt from that timeout and stay loaded (see `behaviors.md` →
+  Left-view tabs). `0` puts every background tab on the timeout.
 - `oneShotStart` — what a 1-shot window opens on: `"blank"` (default, an empty
   page), `"search"` (the `searchTemplate`'s own home page), or `"custom"` for
   `oneShotStartUrl`. Anything else falls back to `"blank"`.

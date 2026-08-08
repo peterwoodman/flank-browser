@@ -126,6 +126,9 @@ export function registerManagerIpc(): void {
       if (typeof patch.backgroundTabMinutes === 'number' && patch.backgroundTabMinutes >= 1) {
         s.backgroundTabMinutes = Math.floor(patch.backgroundTabMinutes);
       }
+      if (typeof patch.backgroundTabKeepCount === 'number' && patch.backgroundTabKeepCount >= 0) {
+        s.backgroundTabKeepCount = Math.floor(patch.backgroundTabKeepCount);
+      }
       if (
         patch.oneShotStart === 'blank' ||
         patch.oneShotStart === 'search' ||

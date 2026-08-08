@@ -18,8 +18,9 @@ interface Tab {
  *
  * The left section treats each home link as a tab: its view stays loaded in
  * the background after navigating away, so returning resumes without a page
- * reload. Backgrounded tabs are evicted after `backgroundTabMinutes`. The
- * right section always uses a single (ad-hoc) view (docs/behaviors.md).
+ * reload. The `backgroundTabKeepCount` most recently used background tabs stay
+ * loaded indefinitely; older ones are evicted after `backgroundTabMinutes`.
+ * The right section always uses a single (ad-hoc) view (docs/behaviors.md).
  */
 export class Section {
   private readonly tabs = new Map<string, Tab>();
@@ -217,10 +218,17 @@ export class Section {
   }
 
   private evictExpiredTabs(): void {
-    const timeoutMs = Math.max(1, settingsStore.current.backgroundTabMinutes) * 60_000;
+    const { backgroundTabMinutes, backgroundTabKeepCount } = settingsStore.current;
+    const timeoutMs = Math.max(1, backgroundTabMinutes) * 60_000;
+    const keep = Math.max(0, Math.floor(backgroundTabKeepCount));
+    const aging = [...this.tabs.values()]
+      .filter((t) => t !== this.activeTab)
+      .sort((a, b) => b.hiddenAt - a.hiddenAt)
+      .slice(keep);
+
     let changed = false;
-    for (const tab of [...this.tabs.values()]) {
-      if (tab === this.activeTab || Date.now() - tab.hiddenAt < timeoutMs) continue;
+    for (const tab of aging) {
+      if (Date.now() - tab.hiddenAt < timeoutMs) continue;
 
       this.tabs.delete(tab.key);
       if (this.lastActiveTab === tab) this.lastActiveTab = null; // ✕ has nothing to return to

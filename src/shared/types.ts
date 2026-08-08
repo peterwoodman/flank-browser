@@ -38,6 +38,8 @@ export interface AppSettings {
   toolbarPosition: ToolbarPosition;
   /** Idle minutes before a backgrounded left tab is unloaded. */
   backgroundTabMinutes: number;
+  /** How many most-recent background tabs are kept loaded regardless of idle time. */
+  backgroundTabKeepCount: number;
   /** What a 1-shot window opens on. */
   oneShotStart: OneShotStart;
   /** The page `oneShotStart: 'custom'` opens; ignored by the other modes. */
@@ -133,6 +135,7 @@ export function defaultSettings(): AppSettings {
     launchAtLogin: false,
     toolbarPosition: 'side',
     backgroundTabMinutes: 30,
+    backgroundTabKeepCount: 10,
     oneShotStart: 'blank',
     oneShotStartUrl: '',
     extensions: [],

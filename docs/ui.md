@@ -128,8 +128,9 @@ identifies itself, since there is no About dialog.
 - **Settings** — behind the gear button in the title bar (the gear becomes a
   back arrow while open): search engine URL template, search suggestions URL
   template, launch-at-login toggle, toolbar position (side or top of each
-  section), background tab timeout (minutes), and extension management (add
-  unpacked folder, import from another browser, enable/disable, remove).
+  section), background tab timeout (minutes), how many background tabs are
+  kept loaded past that timeout, and extension management (add unpacked
+  folder, import from another browser, enable/disable, remove).
   - **Import from another browser…** opens a dialog that scans the machine's
     other Chromium browsers on open ("Looking for installed browsers…") and
     lists what it finds: icon, name, and the browser, profile, and version it
