@@ -52,7 +52,7 @@ export class ContentView {
    */
   pinned = false;
   /**
-   * Set while this view is a home link's tab: its live favicons and its app's
+   * Set while this view is a pinned link's tab: its live favicons and its app's
    * manifest background feed that link's tile icon and launch splash.
    */
   linkId: string | null = null;
@@ -106,7 +106,7 @@ export class ContentView {
   onFindRequested: () => void = () => {};
   /** findInPage progress for the chrome's find bar. */
   onFoundInPage: (activeMatch: number, matches: number) => void = () => {};
-  /** A home link's tab: a fresh page favicon was captured (page URL, image bytes). */
+  /** A pinned link's tab: a fresh page favicon was captured (page URL, image bytes). */
   onFaviconCaptured: (pageUrl: string, image: Buffer) => void = () => {};
 
   /** `ses` is the profile's partition: what the page browses as. */
@@ -189,7 +189,7 @@ export class ContentView {
 
       this.setPageTitle(wc.getTitle());
 
-      // A home link's tab: the manifest background feeds its launch splash.
+      // A pinned link's tab: the manifest background feeds its launch splash.
       if (this.linkId) {
         fireAndForget('launch metadata', this.updateLaunchMetadata(url));
       }
@@ -338,6 +338,16 @@ export class ContentView {
 
   get webContents() {
     return this.view.webContents;
+  }
+
+  /**
+   * Whether the page is acting on a click or keypress the user just made. The
+   * routing rules read it through `will-navigate`; asking the user where a link
+   * should open needs it too, so that a tab a page opens by itself is not put
+   * to them as a question about a click they did not make.
+   */
+  get clickedRecently(): boolean {
+    return Date.now() - this.lastUserGesture < GESTURE_WINDOW_MS;
   }
 
   /** The engine's own back stack (reaches SPA route changes the trail collapses). */
@@ -582,14 +592,14 @@ export class ContentView {
     this.onChanged();
   }
 
-  /** After a home link's page settles, capture its app's manifest background
+  /** After a pinned link's page settles, capture its app's manifest background
    * color for the link's launch splash. */
   private async updateLaunchMetadata(pageUrl: string): Promise<void> {
     const manifest = await readManifest(this.webContents);
     if (manifest.backgroundColor) this.onAppBackground(pageUrl, manifest.backgroundColor);
   }
 
-  /** A home link's tab: manifest background captured for the splash. */
+  /** A pinned link's tab: manifest background captured for the splash. */
   onAppBackground: (pageUrl: string, cssColor: string) => void = () => {};
 }
 

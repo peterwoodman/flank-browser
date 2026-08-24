@@ -50,6 +50,13 @@ export interface AppSettings {
   managerWindow?: WindowPlacement;
   /** Per-origin permission decisions: origin -> permission name -> allowed. */
   permissions?: Record<string, Record<string, boolean>>;
+  /**
+   * Sites that hold their own links, from the where-to-open question's "Always
+   * Open in Place" (docs/behaviors.md → Which section, when it isn't obvious).
+   * Hosts, lowercased and without `www.`; a subdomain of one counts as the same
+   * site. A pinned link carries the same switch of its own, per link.
+   */
+  navigateInPlaceSites?: string[];
 }
 
 /**
@@ -107,10 +114,8 @@ export interface TrailEntry {
   visitedAt: string;
 }
 
-export type SectionMode = 'home' | 'web';
-
 export interface SessionSection {
-  mode: SectionMode;
+  /** The page the section was showing; empty means it was showing none. */
   url: string;
   /** Whether the section was visible when saved. A closed right section keeps its trail. */
   open: boolean;
@@ -149,7 +154,7 @@ export function defaultSpacesFile(): SpacesFile {
 }
 
 export function emptySection(): SessionSection {
-  return { mode: 'home', url: '', open: false, trail: [] };
+  return { url: '', open: false, trail: [] };
 }
 
 export function defaultSessionFile(): SessionFile {

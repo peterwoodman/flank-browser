@@ -14,8 +14,7 @@
 .toolbar,
 .topbar,
 .find-bar,
-.loadbar-lane,
-.home-view {
+.loadbar-lane {
   background: var(--chrome-bg, var(--bg));
   /* Adaptive page colors settle asynchronously; ease instead of flashing. */
   transition:
@@ -31,13 +30,24 @@
 /* One backdrop across the whole window. These surfaces must paint separately
    (an opaque ancestor would blank the pages), so `fixed` pins each one's slice
    of the wash to the window rather than restarting the gradient per element:
-   the title bar and both home views then line up into a single image. The
-   title bar joins only while the left section is home — with a page there it
-   wears that page's adaptive color instead. */
+   the title bar and an empty section's frame then line up into a single image.
+   A section with no page wears it across its whole frame — toolbar, load-bar
+   lane, and the hole where a page would be. The title bar joins only while the
+   left section is empty; with a page there it wears that page's adaptive
+   color instead. */
 .space-root .titlebar-wash,
-.home-view {
+.web-chrome.empty .toolbar,
+.web-chrome.empty .loadbar-lane,
+.section-empty {
   background-image: var(--wash);
   background-attachment: fixed;
+}
+
+.section-empty {
+  position: absolute;
+  inset: 0;
+  background-color: var(--bg);
+  animation: fade-in var(--dur-dialog) var(--ease-decel);
 }
 
 .sections {
@@ -74,107 +84,98 @@
   opacity: 0.5;
 }
 
-/* --- Home view --- */
+/* --- Space menu --- */
 
-.home-view {
-  position: relative;
+/* A fixed panel rather than one sized to its links: it is a menu, and a menu
+   that changes shape with the space it belongs to would read as a page. */
+.space-menu {
+  /* Anchored to this section's .web-chrome, beside its toolbar. */
+  left: 50px;
+  top: 8px;
+  width: 348px;
+  max-width: none;
+  height: min(520px, calc(100vh - 96px));
+  padding: 10px;
+  gap: 10px;
+}
+
+.space-menu-search {
+  flex: none;
+  display: flex;
+}
+
+/* Four to a row by column count rather than by tile width: the panel is a
+   fixed size, and auto-fill would drop to three the moment a scrollbar
+   appeared. A 44px icon card holds a 26px icon. */
+.space-menu-grid {
   flex: 1;
   min-height: 0;
-  animation: fade-in var(--dur-dialog) var(--ease-decel);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 48px 32px 56px;
   overflow-y: auto;
-}
-
-.home-return {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-}
-
-/* The home view's own copy of the toolbar's trailing pair (1-shot, Spaces). */
-.home-corner {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  display: flex;
+  align-content: start;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
   gap: 4px;
 }
 
-.home-search {
-  width: min(520px, 100%);
-  margin-bottom: 40px;
+.space-menu-empty {
+  grid-column: 1 / -1;
+  padding: 12px 4px;
+  color: var(--fg-muted);
+  font-size: 13px;
 }
 
-/* Tile metrics: 104px items with 8px inner padding, a 56px icon card holding
-   a 32px icon, 16px between tiles. */
-.home-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, 104px);
-  gap: 16px;
-  justify-content: center;
-  width: 100%;
-  max-width: 740px;
-}
-
-.home-tile {
-  width: 104px;
-  padding: 12px 8px;
-  border-radius: 8px;
+.space-menu-tile {
+  padding: 8px 4px;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-}
-
-.home-tile {
+  gap: 6px;
   transition:
     background-color var(--dur-state) linear,
     transform var(--dur-state) linear;
 }
 
-.home-tile:hover {
+.space-menu-tile:hover {
   background: var(--bg-hover);
 }
 
 /* Pressed tiles compress slightly, like GridView items. */
-.home-tile:active {
+.space-menu-tile:active {
   transform: scale(0.97);
 }
 
-.home-tile.dragging {
+.space-menu-tile.dragging {
   opacity: 0.4;
 }
 
-.home-tile-icon {
-  width: 56px;
-  height: 56px;
+.space-menu-tile-icon {
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 10px;
   background: var(--bg-panel);
   border: 1px solid var(--border);
   overflow: hidden;
 }
 
-.home-tile-icon img {
-  width: 32px;
-  height: 32px;
+.space-menu-tile-icon img {
+  width: 26px;
+  height: 26px;
   object-fit: contain;
 }
 
-.home-tile-letter {
-  font-size: 24px;
+.space-menu-tile-letter {
+  font-size: 19px;
   font-weight: 600;
   color: var(--fg-muted);
 }
 
-.home-tile-title {
-  max-width: 88px;
-  font-size: 13px;
-  line-height: 1.25;
+.space-menu-tile-title {
+  max-width: 100%;
+  font-size: 11px;
+  line-height: 1.2;
   text-align: center;
   /* Two lines, then ellipsis. */
   display: -webkit-box;
@@ -183,13 +184,34 @@
   overflow: hidden;
 }
 
-/* Follows the grid, and drops to the bottom of the canvas while the links
-   don't fill it. */
-.home-add {
-  margin-top: auto;
+.space-menu .flyout-separator {
+  margin: 0 -6px;
+}
+
+/* The actions that don't act on a page: adding a link, and the windows the
+   toolbar's trailing pair opens. */
+.space-menu-footer {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+.space-menu-footer .button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.space-menu-footer-spacer {
+  flex: 1;
+}
+
+/* Dropped from under a top toolbar rather than out beside a side one. */
+.web-chrome.toolbar-top .space-menu {
+  left: 8px;
+  top: 46px;
+  height: min(520px, calc(100vh - 134px));
 }
 
 /* --- Suggestion box --- */
@@ -482,6 +504,33 @@
   left: 50px;
   top: 8px;
   max-height: calc(100vh - 120px);
+}
+
+/* "Flank" / "Open In Place", placed at the pointer that clicked. Fixed, since
+   the coordinates are the window's own (docs/behaviors.md → Which section). */
+.route-choice {
+  position: fixed;
+  gap: 6px;
+  min-width: 170px;
+  padding: 6px;
+}
+
+/* The answers carry equal weight: same width (the column stretches them) and
+   the same centered label. */
+.route-choice .button {
+  text-align: center;
+}
+
+/* A note about the answer above it, not a third answer. */
+.route-choice-always {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 2px 4px 4px;
+  color: var(--fg-muted);
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
 }
 
 .flyout-item {

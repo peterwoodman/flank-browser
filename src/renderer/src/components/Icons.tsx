@@ -40,9 +40,13 @@ export const HistoryIcon = (): React.JSX.Element => (
   </Icon>
 );
 
-export const HomeIcon = (): React.JSX.Element => (
+/** The space menu: an app-launcher grid of dots, distinct from the Spaces
+ *  button's four solid tiles. Round caps turn each zero-length path into a dot. */
+export const MenuIcon = (): React.JSX.Element => (
   <Icon>
-    <path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z" />
+    <path d="M6 6h.01M12 6h.01M18 6h.01" />
+    <path d="M6 12h.01M12 12h.01M18 12h.01" />
+    <path d="M6 18h.01M12 18h.01M18 18h.01" />
   </Icon>
 );
 

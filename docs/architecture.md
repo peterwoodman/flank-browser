@@ -69,8 +69,8 @@ the Manager window as the launcher. Each space window is an Electron
 Each browsing window is a `BaseWindow` whose content view stacks:
 
 1. **Chrome view** (bottom) — one full-window `WebContentsView` running the
-   React app (title bar, toolbars, home views, address bars, flyouts, find
-   bar, dialogs). Its background is transparent; the window's
+   React app (title bar, toolbars, address bars, the space menu and the other
+   flyouts, find bar, dialogs). Its background is transparent; the window's
    `backgroundColor` is the visible base.
 2. **Content views** (top) — the pooled page views, positioned by the main
    process into "holes" the chrome reports over IPC (each `WebChrome`
@@ -87,11 +87,11 @@ rules, `OneShotWindowController` has one page and none. A window answers IPC
 under an id its chrome carries in every message — a space id for a space window,
 its own for a 1-shot one — so every channel about a *page* (layout, the address
 bar, find, extensions, prompts) is shared, and only the channels about a *space*
-(home links, split, trail, pin) resolve to a space controller.
+(pinned links, split, trail, pin) resolve to a space controller.
 
 A content view is a page, not a place. The two rules that differ by side —
 whether a user navigation leaving the page routes to the other section, and
-whether the page feeds a home link's tile icon and launch splash — are settings
+whether the page feeds a pinned link's tile icon and launch splash — are settings
 the owning section applies (`pinned`, `linkId`), not facts fixed when the view
 is built, and the window's routing callbacks resolve a view's side per event
 (`sideOf`) rather than closing over the section that created it. That is what
@@ -116,8 +116,8 @@ Transparency has two traps: a load resets the view's background to the
 engine default, so `#00000000` is re-applied on `did-finish-load`; and a
 CSS background on any ancestor of a content hole paints *behind* the hole
 and blanks the pages when the chrome is raised — chrome surfaces (toolbar,
-address bar, home view) each paint their own background, never a shared
-section-wide one.
+address bar, and the backdrop an empty section paints inside its own hole)
+each paint their own background, never a shared section-wide one.
 
 The title bar is `titleBarStyle: 'hidden'` with `titleBarOverlay` (native
 caption buttons) on Windows/Linux; the title text renders in the chrome view
@@ -146,7 +146,7 @@ main process
 ├── chrome-window         – BaseWindow + chrome view: layout holes, overlay
 │                           z-order, prompts, popups, context menu, captions
 ├── space-window          – a space's two sections, routing, pin, session
-│   └── section (×2)      – tab pool (keep-alive per home link + ad-hoc view),
+│   └── section (×2)      – tab pool (keep-alive per pinned link + ad-hoc view),
 │                           eviction timer, session capture/restore
 │       └── content-view  – one WebContentsView: navigation routing, trail,
 │                           colors, load/crash/certificate state, favicon
@@ -183,6 +183,7 @@ main process
 | Behavior | Electron mechanism |
 |---|---|
 | Navigation routing (leave the pinned page → right section) | `will-navigate` `preventDefault()` + a programmatic-navigation flag, since the event carries no user-gesture flag |
+| Asking which section a link opens in | The navigation is cancelled as always and the answer starts a fresh one, so nothing waits on the user; the question carries `screen.getCursorScreenPoint()` less the window's content bounds, the page's own click coordinates being in its zoomed space. One question at a time — a request arriving while it is up takes the answer Flank would have guessed |
 | New tabs and popups | `setWindowOpenHandler`: `deny` + route per `behaviors.md`, or `allow` for sized popups (`disposition: 'new-window'`) whose target is `http(s)` or blank — a window the host opens is a host navigation, so the engine's own scheme block does not apply to it |
 | Page instrumentation (shift+click, gestures, colors) | the content-view preload |
 | Extensions | `session.extensions.loadExtension` + `electron-chrome-extensions` |

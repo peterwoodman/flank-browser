@@ -9,10 +9,10 @@ instead, for demo and test profiles.
 ```
 <app data>/
 ├── settings.json          – app-wide settings and app-level state
-├── spaces.json        – profiles, space definitions, and home grids
+├── spaces.json        – profiles, space definitions, and link grids
 ├── sessions/
 │   └── {spaceId}.json – per-space session state and trails
-├── icons/                 – cached favicons for home grid tiles
+├── icons/                 – cached favicons for link grid tiles
 │   ├── {urlhash}.png      – page-declared favicon captured live (keyed by a
 │   │                        hash of the link URL; see behaviors.md → Favicons)
 │   └── {authority}.ico    – fallback fetch for never-opened links (keyed by
@@ -55,6 +55,7 @@ Design rules:
   "oneShotStartUrl": "",
   "openSpaces": ["8b1c…"],
   "permissions": { "https://meet.example.com": { "media": true, "notifications": false } },
+  "navigateInPlaceSites": ["shop.example.com"],
   "managerWindow": { "x": 640, "y": 320, "width": 660, "height": 560, "maximized": false },
   "extensions": [
     {
@@ -102,6 +103,14 @@ Design rules:
   origin's entry makes it ask again. App-wide rather than per profile: allowing a
   site your camera is a decision about the site, not about which identity is
   browsing it.
+- `navigateInPlaceSites` — sites that hold their own links, from the
+  where-to-open question's "Always Open in Place" (see `behaviors.md` → Which
+  section, when it isn't obvious). Hosts, lowercased and without `www.`; a
+  subdomain of a listed host counts as the same site. App-wide, because a site
+  that is really one app is one app in every space; a pinned link's own copy of
+  the switch is `navigateInPlace` in `spaces.json`. Deleting an entry is what
+  turns it back off — the question that set it never appears for that site
+  again.
 - `extensions` — app-wide, not per profile: the same set is loaded into every
   profile (see `behaviors.md` → Extensions).
 - `extensions[].path` — folder containing an unpacked Chromium extension.
@@ -155,7 +164,8 @@ Design rules:
 - `profileId` is the profile a space browses as. An unknown one (hand-edited, or
   a space written before profiles existed) falls back to the first profile.
   Spaces are stored grouped by profile, in profile order.
-- `links` is the home grid; `order` drives grid position (row-major).
+- `links` is the space menu's link grid; `order` drives grid position
+  (row-major).
 - `icon` is a relative path into the `icons/` cache; empty means "fetch a
   favicon on next display".
 - `background` is the app's manifest `background_color` (or `theme_color`),
@@ -185,7 +195,6 @@ reopening restores it.
   "version": 1,
   "savedAt": "2026-07-21T14:03:22Z",
   "left": {
-    "mode": "web",
     "url": "https://en.wikipedia.org/wiki/Electron_(software_framework)",
     "open": true,
     "trail": [
@@ -201,15 +210,16 @@ reopening restores it.
       }
     ]
   },
-  "right": { "mode": "home", "url": "", "open": false, "trail": [] }
+  "right": { "url": "", "open": false, "trail": [] }
 }
 ```
 
-- `left` and `right` are both always written; an unused right section is
-  `mode: "home"` with an empty trail.
+- `left` and `right` are both always written; an unused right section has an
+  empty `url` and an empty trail.
 - `open` records whether the section was visible when saved. A closed right
   section keeps its trail here but is not reopened on restore.
-- `mode` is `"home"` or `"web"`. In home mode `url` is ignored.
+- `url` is the page the section was showing. Empty means it was showing none,
+  and the section opens on its backdrop with the space menu up.
 - `trail` is newest-first and capped (500 entries per view); deleting an
   entry in the UI removes it here on the next save.
 - Sessions are saved on window close and every ~30 s while open, so a crash

@@ -12,8 +12,8 @@ const WINDOW_TITLE = '1-shot';
 /**
  * A 1-shot window (docs/ui.md → 1-shot window): one free-browsing page in the
  * profile of the window that opened it, with an address bar and nothing else —
- * no home, no trail, nothing remembered when it closes. For the errand that
- * doesn't belong in a space.
+ * no space menu, no trail, nothing remembered when it closes. For the errand
+ * that doesn't belong in a space.
  */
 export class OneShotWindowController extends ChromeWindow {
   private readonly view: ContentView;
@@ -85,16 +85,14 @@ export class OneShotWindowController extends ChromeWindow {
     return {
       side: 'left',
       open: true,
-      mode: 'web',
+      hasPage: true,
       url: this.view.currentUrl(),
       pageTitle: this.view.pageTitle,
       canGoBack: this.view.canGoBack,
-      showReturnButton: false,
-      returnCloses: false,
-      // No home to hide it for, and no pinning it away: this window is
+      // Nothing pinned to hide it for, and no pinning it away: this window is
       // always somewhere it can say out loud.
       showAddressBar: true,
-      showPinButton: false, // no home grid to pin to
+      showPinButton: false, // no link grid to pin to
       trail: [],
       loading: this.view.loading,
       crashed: this.view.crashed,

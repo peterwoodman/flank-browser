@@ -17,6 +17,7 @@ export function SuggestInput({
   placeholder,
   clearOnSubmit,
   raiseOverlay,
+  autoFocus,
   onSubmit
 }: {
   windowId: string;
@@ -28,6 +29,8 @@ export function SuggestInput({
   clearOnSubmit?: boolean;
   /** Raise the chrome while the dropdown is open (needed over web content). */
   raiseOverlay?: boolean;
+  /** Takes the keyboard on mount, so the space menu can be typed into at once. */
+  autoFocus?: boolean;
   onSubmit: (text: string, suggestion: SuggestionDto | null) => void;
 }): React.JSX.Element {
   const [text, setText] = useState(value ?? '');
@@ -43,6 +46,10 @@ export function SuggestInput({
   useEffect(() => {
     if (!focused) setText(value ?? '');
   }, [value, focused]);
+
+  useEffect(() => {
+    if (autoFocus) inputRef.current?.focus();
+  }, [autoFocus]);
 
   useEffect(() => {
     if (!raiseOverlay || !open) return;
@@ -102,6 +109,9 @@ export function SuggestInput({
     } else if (e.key === 'Enter') {
       submit(selected >= 0 ? items[selected] : null);
     } else if (e.key === 'Escape') {
+      // Dismiss the dropdown first; only a second Escape reaches whatever the
+      // box sits in (the space menu closes on it).
+      if (open) e.stopPropagation();
       close();
     }
   };

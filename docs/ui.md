@@ -11,10 +11,10 @@ stylesheets load or SPAs swap their `theme-color`); instead the page reports
 its colors whenever they change, so the two sections showing the same page
 converge on the same value rather than each capturing a different transient
 state. The window title bar and the window's dark/light theme follow the
-**left** section's active page; showing home resets to defaults. Pages that
-declare no CSS `color-scheme` get one injected to match the detected colors, so
-the engine renders scrollbars and form controls in the page's colors instead of
-the system theme's.
+**left** section's active page; with no page there they reset to defaults.
+Pages that declare no CSS `color-scheme` get one injected to match the detected
+colors, so the engine renders scrollbars and form controls in the page's colors
+instead of the system theme's.
 
 > **Windows and Linux:** the tint reaches the native caption
 > (minimize/maximize/close) buttons too, through the window controls overlay.
@@ -22,16 +22,16 @@ the system theme's.
 > the system draws them.
 
 Backdrop: chrome canvases that would otherwise read as flat panels — the
-Manager window and a section's home view — carry a wash over the theme
+Manager window and a section holding no page — carry a wash over the theme
 background: light lifting off the top edge, an accent veil throughout, and the
 accent pooling at the bottom. It runs top to bottom with no variation across
 the width, so the native caption-button strip, which can only take one flat
 color, can match it instead of showing as a patch. The wash is anchored to the
 window rather than to each surface, so the title bar and both sections form one
 continuous image rather than each restarting the gradient. In a space window it
-covers the title bar only while the left section is home — with a page there,
-the title bar wears that page's adaptive color — and a section showing a page
-has no wash of its own.
+covers the title bar only while the left section holds no page — with a page
+there, the title bar wears that page's adaptive color — and a section showing a
+page has no wash of its own.
 
 Color scheme: each space picks the accent its wash is mixed from, from a fixed
 palette — Azure (the default), Lagoon, Fern, Amber, Ember, Rose, Iris,
@@ -71,11 +71,10 @@ There is no system tray or background residency; windows are the only UI.
   other: that is what keeps leaving Flank predictable, with no guessing about
   who closed a window. Closing the Manager itself while a space is open takes
   the hub away until the next space opens.
-- **The Spaces button** (grid icon) belongs to the **left** section — at the
-  far end of its toolbar when it shows a page, and in the bottom-left corner of
-  its home view. It brings the Manager back up. Spaces are switched through the
-  Manager rather than from a menu inside the space window, so there is one place
-  where every space lives.
+- **The Spaces button** (four-tile icon) belongs to the **left** section — at
+  the far end of its toolbar, and in the footer of its space menu. It brings the
+  Manager back up. Spaces are switched through the Manager rather than from
+  inside the space window, so there is one place where every space lives.
 - **Closing the last window exits Flank** — including the desktop's "close all
   windows", which reaches the background Manager along with the space windows.
   Sessions are saved on every window close (and autosaved), so reopening a space
@@ -90,8 +89,8 @@ than like a settings page. It remembers its own size/position. Default size
 of the window, below whichever view is showing — the one place a build
 identifies itself, since there is no About dialog.
 
-- **Space grid** (the main view) — one tile (132×132) per space
-  showing a montage of up to four home-link favicons (falling back to the
+- **Space grid** (the main view) — one tile (132×132) per space showing a
+  montage of up to four of its pinned links' favicons (falling back to the
   space's initial letter), the name, and a green dot when its window is
   open (refreshed whenever the Manager regains focus). Each tile is tinted with
   its space's color scheme — flat rather than the full wash, which reads as
@@ -113,9 +112,8 @@ identifies itself, since there is no About dialog.
   nothing to whoever never adds one. Each row ends in its own "＋ New space"
   tile, so a new space is always created in a named profile rather than a
   default one.
-  - **＋ Add profile** sits at the bottom of the canvas — the position and style
-    the home view's "Add link" has — pushed there while the tiles don't reach
-    it. It asks for a name and appends an empty row.
+  - **＋ Add profile** sits at the bottom of the canvas, pushed there while the
+    tiles don't reach it. It asks for a name and appends an empty row.
   - **Remove profile** appears as a tile beside "＋ New space", only on a
     profile holding no spaces and only while another profile exists (a space has
     to have somewhere to browse from). It confirms first, and takes that
@@ -146,7 +144,7 @@ identifies itself, since there is no About dialog.
 One window per space; its title bar shows the space icon and the window title (a
 normal-height title bar with no extra controls). The title tracks the **left**
 section's active page — `space name - page title` — and falls back to just the
-space name on the home view. Windows appear in the taskbar normally and stack
+space name with no page there. Windows appear in the taskbar normally and stack
 like any multi-window app. Closing the window saves the session. Default size
 1400×900; size/position/maximized state are remembered per space.
 
@@ -161,16 +159,20 @@ identifiable without an address bar.
 ```
 ┌───────────────────────────────────────────────┐
 │  Title bar: <Space name>            [⊞]   │
-├───────────────────────┬─┬─────────────────────┤
-│  Left section         │║│  Right section      │
-│  (Home view or        │║│  (optional,         │
-│   Web view)           │║│   Home or Web view) │
-│                       │║│                     │
-└───────────────────────┴─┴─────────────────────┘
-                         ▲ SplitBar (drag to resize, 50/50 default)
+├─┬─────────────────────┬─┬─────────────────────┤
+│▤│  Left section       │║│  Right section      │
+│↻│  (a page, or the    │║│  (optional)         │
+│ │   backdrop before   │║│                     │
+│ │   its first one)    │║│                     │
+└─┴─────────────────────┴─┴─────────────────────┘
+  ▲ Toolbar              ▲ SplitBar (drag to resize, 50/50 default)
 ```
 
 - The left section is always present.
+- A section shows one page, with no chrome around it but its own toolbar and
+  the contextual address bar. Before its first page — a space opened fresh, or
+  the right section just opened — it shows the backdrop instead, with its
+  **space menu** open over it.
 - The right section appears when a link opens a new page, or when the user
   clicks "Open right view" in the left toolbar. It is removed with the
   toolbar's "Close view" button; the remaining section expands to full width.
@@ -180,32 +182,44 @@ identifiable without an address bar.
   clamp) — the width does not change automatically based on which section the
   pointer is over.
 
-### Home view
+### Space menu
 
-A launcher-style page, no browser chrome, over the backdrop wash described
-above:
+The space's own start menu: a panel of fixed size (348 px wide, up to 520 px
+tall) that opens from the **Space menu** button at the top of the section's
+toolbar, over whatever that section is showing. It covers part of the page
+rather than replacing it — the page underneath stays loaded and visible, and
+nothing about the section changes while the menu is up.
 
-- **Search/URL box** centered near the top. Enter a URL to navigate; anything
+It light-dismisses like any flyout: `Escape`, a click anywhere outside it, or
+picking something from it. It is deliberately not a page and not a state a
+section can be left in; a section is always either on a page or on the backdrop
+waiting for its first one.
+
+- **Search/URL box** across the top, focused when the menu opens, so the menu
+  can be typed into the moment it appears. Enter a URL to navigate; anything
   that isn't URL-shaped goes to the default search engine. While typing, a
-  dropdown suggests matching home links and engine completions (see
-  `behaviors.md` → Search suggestions).
-- **Link grid** below: icons + titles, like a mobile app launcher. Activating
-  a link navigates this section to web view (see `behaviors.md` for routing).
-- Grid management: right-click a tile for Edit / Remove; a **＋ Add link**
-  button below the grid — pushed to the bottom of the canvas while the links
-  don't fill it — opens a small dialog (URL, title, a **Navigate in place**
-  checkbox — see `behaviors.md` → Navigation routing; icon auto-fetched from
-  favicon), centered over **this section** and never obscured by the other
-  section's page; tiles reorder via drag & drop.
-- An **✕ button** in the top-right returns to the page view this section was
-  showing before going home. On the left it only appears when there is a page
-  to return to (hidden on fresh sections, after the tab was evicted, or after
-  the section was closed and its views unloaded). On the **right** section it
-  is always shown: with no page to return to, it closes the right section.
-- The **1-shot window** and **Spaces** buttons sit in the bottom-left corner of
-  the left section's home view, the same pair that ends its page toolbar.
+  dropdown suggests matching pinned links and engine completions (see
+  `behaviors.md` → Search suggestions). `Escape` closes the dropdown first and
+  the menu only on a second press.
+- **Link grid** below, filling the rest of the panel and scrolling when the
+  links outgrow it: icons + titles, four to a row, like a phone's app
+  launcher. Activating a link navigates this section to it (see `behaviors.md`
+  for routing) and closes the menu.
+- Grid management: right-click a tile for Edit / Remove; tiles reorder via
+  drag & drop.
+- **Footer**, under a rule: **＋ Add link** on the left, opening a small dialog
+  (URL, title, a **Navigate in place** checkbox — see `behaviors.md` →
+  Navigation routing; icon auto-fetched from favicon) centered over **this
+  section** and never obscured by the other section's page. On the **left**
+  section the footer ends with the **1-shot window** and **Spaces** buttons,
+  the same pair that ends that toolbar.
 
-### Web view (WebSection)
+The menu is per section: each has its own button and its own panel, and what is
+picked opens in the section it was picked from. It anchors to the toolbar the
+way the trail flyout does — beside it when the toolbar is on the side, below it
+when it is on top.
+
+### Section chrome
 
 A strip of icon buttons — the section's **toolbar** — then the browser view
 filling the rest, with no tabs. The toolbar runs down the section's left edge
@@ -214,40 +228,44 @@ applies to every section of every space window and takes effect immediately,
 with no restart.
 
 An address/search bar shows across the top of the section when the page is
-**not** one of the space's home links — searches, promoted pages, and other
-unpinned excursions, in either section. Pages on a home link's host (redirects
-and SPA routes included) keep the minimal, bar-less chrome. The rule is
-identical for both sections, so pinning the current page always hides the bar.
+**not** one of the space's pinned links — searches, promoted pages, and other
+unpinned excursions, in either section. Pages on a pinned link's host
+(redirects and SPA routes included) keep the minimal, bar-less chrome. The rule
+is identical for both sections, so pinning the current page always hides the
+bar.
 
 The toolbar's **Address bar** button overrides that default for its section:
 it flips whatever is showing now — reveal the bar on a pinned site, or hide it
 on an unpinned one — and the override holds through navigation until the
-section is closed or a different page is picked from home (returning from home
-to the same page keeps it). Without a press it changes nothing; the home-link
-rule stays in charge.
+section is closed or a different page is picked from the menu. Without a press
+it changes nothing; the pinned-link rule stays in charge.
+
+Before a section's first page there is no page chrome to show: the toolbar
+keeps only the buttons that don't act on a view — the space menu, the ones that
+open and close sections, and the left section's trailing pair — and the rest of
+the section is backdrop.
 
 Toolbar buttons, in order — top to bottom on the side, left to right on top:
 
 | Button | Placement variant | Action |
 |---|---|---|
-| Open right view | **left** section only; hidden while the right section is already open | Opens the right section (home view) |
+| Open right view | **left** section only; hidden while the right section is already open | Opens the right section, empty with its menu up |
 | Close view | **right** section only | Closes this section; the left section expands |
-| Move page to left | **right** section only | Moves this page into the left section without reloading it, and closes the right section; the left section's trail continues beneath the moved page's own (`behaviors.md` → Sections lifecycle) |
+| Move page to left | **right** section only; hidden with no page | Moves this page into the left section without reloading it, and closes the right section; the left section's trail continues beneath the moved page's own (`behaviors.md` → Sections lifecycle) |
 | Back | both; visible only while the browser can go back (and the view shows an http(s) page) | Steps back through the browser engine's history — unlike the trail, this reaches SPA route changes (pushState), which the trail collapses into one entry |
-| Home | both | Switches this section to the home view |
-| Refresh | both | Reloads the current page |
-| Address bar | both | Shows/hides the section's address bar, overriding the home-link default until the section closes or a different page is picked from home |
+| Space menu | both | Opens (or closes) this section's space menu — a 3×3 dot grid, an app launcher rather than a house, because it is a menu and not a page |
+| Refresh | both; hidden with no page | Reloads the current page |
+| Address bar | both; hidden with no page | Shows/hides the section's address bar, overriding the pinned-link default until the section closes or a different page is picked from the menu |
 | Trail | both; hidden unless the view has visited more than the current page | Expands the trail flyout (history of this view) |
-| Extension icons | both | One icon per enabled extension, rendered grayscale to match the monochrome toolbar glyphs. Clicking opens the extension's popup in a small window anchored to the button — beside it, or below it when the toolbar is on top; extensions without a popup open their options page instead |
-| 1-shot window | **left** section only; at the far end of the toolbar beside Spaces, and also on the home view | Opens a 1-shot window in this space's profile (see below) |
-| Spaces | **left** section only; pushed to the far end of the toolbar (bottom on the side, right on top), and also on the home view | Opens (or focuses) the Manager window |
+| Extension icons | both; hidden with no page | One icon per enabled extension, rendered grayscale to match the monochrome toolbar glyphs. Clicking opens the extension's popup in a small window anchored to the button — beside it, or below it when the toolbar is on top; extensions without a popup open their options page instead |
+| 1-shot window | **left** section only; at the far end of the toolbar beside Spaces, and also in the menu footer | Opens a 1-shot window in this space's profile (see below) |
+| Spaces | **left** section only; pushed to the far end of the toolbar (bottom on the side, right on top), and also in the menu footer | Opens (or focuses) the Manager window |
 
 Each section has its own toolbar; buttons act on that section's view only. The
 trailing pair — 1-shot window and Spaces — are the exception: only on the left,
-pushed to the toolbar's far end, and shown on both the page toolbar and the home
-view (where they sit in the bottom-left corner regardless of the toolbar's
-position); they open a window rather than acting on the view. Flyouts open from
-the toolbar edge: beside it when it is on the side, below it when on top.
+pushed to the toolbar's far end, and repeated in that section's menu footer;
+they open a window rather than acting on the view. Flyouts open from the
+toolbar edge: beside it when it is on the side, below it when on top.
 
 While a page is loading, a thin indeterminate progress bar sits at the top of
 the section's content area, tinted with the page's adaptive colors. It appears
@@ -261,7 +279,7 @@ load-progress percentage, and it watches for several completion signals
 because some navigations — downloads, streamed responses, navigations
 superseded elsewhere — never report completion at all.
 
-When a home link is launched (or restored) in the left section, a PWA-style
+When a pinned link is launched (or restored) in the left section, a PWA-style
 splash covers the view while its page loads: the link's icon and name centered
 on the app's manifest `background_color` (a theme-neutral canvas when the app
 declares none). It clears as soon as the page is ready (the same signals that
@@ -278,6 +296,18 @@ doesn't arrive):
   quits.
 - **A page that stopped responding** — **Wait** or **End page**.
 
+#### Where-to-open question
+
+A small flyout at the pointer, appearing over the page when a click would open
+the closed right section (`behaviors.md` → Which section, when it isn't
+obvious). Its answers are stacked and equally wide, so neither reads as the
+lesser one: **Flank** on top, accented and focused so `Enter` takes it, then
+**Open In Place**, then an **Always Open in Place** checkbox in the muted
+smaller type of a note about the answer above it. It light-dismisses like a
+context menu — `Escape` or a click anywhere else — and dismissing drops the click
+rather than choosing for the user. It flips to the other side of the pointer
+rather than overflowing a window edge.
+
 #### Trail flyout
 
 An expandable panel anchored to the Trail button listing this view's history,
@@ -289,28 +319,29 @@ action sits at the bottom. The trail persists across restarts (see
 #### Address bar
 
 A bar across the top of a section, styled like the toolbar (adaptive page
-colors included). Shown whenever the current page isn't from a home link —
-matching is by host, case-insensitive, ignoring a `www.` prefix — or whenever
-the toolbar's Address bar toggle says so (above).
+colors included). Shown whenever the current page isn't one of the space's
+pinned links — matching is by host, case-insensitive, ignoring a `www.`
+prefix — or whenever the toolbar's Address bar toggle says so (above).
 
 - **Address/search box** — shows the current URL; type a URL or search terms
   and Enter navigates this view in place (same URL-vs-search rules as the
-  home search box). The text follows navigation unless the box is focused.
-  While typing, a dropdown suggests matching home links, this view's trail
+  menu's search box). The text follows navigation unless the box is focused.
+  While typing, a dropdown suggests matching pinned links, this view's trail
   entries, and engine completions (see `behaviors.md` → Search suggestions).
-- **Pin to home** button — adds the current page to this space's home
-  grid (icon and title pre-filled from the page's web app manifest when it has
+- **Pin to menu** button — adds the current page to this space's link grid
+  (icon and title pre-filled from the page's web app manifest when it has
   one, else the live favicon and document title — see `behaviors.md` → Favicons).
-  Hidden when the page is already on a home link's host — on a bar the toggle
+  Hidden when the page is already on a pinned link's host — on a bar the toggle
   revealed over a pinned site, there is nothing left to pin.
 
 ## 1-shot window
 
 A plain browser window for the errand that doesn't belong in a space: check a
 link someone sent, sign in to something once, look one thing up. Opened from the
-**1-shot window** button beside Spaces — in the left toolbar or on the home view
-— and it browses in the profile of the window that opened it, so it is the same
-identity, cookies and logins included, as the space it came from.
+**1-shot window** button beside Spaces — in the left toolbar or in the space
+menu's footer — and it browses in the profile of the window that opened it, so
+it is the same identity, cookies and logins included, as the space it came
+from.
 
 ```
 ┌───────────────────────────────────────────────┐
@@ -326,12 +357,12 @@ The title bar reads `1-shot - page title`, falling back to `1-shot` before a
 page has one — the same shape as a space window's title, with `1-shot` standing
 in for the space name.
 
-It is the space window's web view with everything space-specific taken out:
+It is a space section with everything space-specific taken out:
 
-- **No home** — no home view, no Home button, nowhere to return to. The window
-  starts on a page and stays on pages.
-- **The address bar is always there**, with no *Pin to home* button: there is no
-  home grid to pin to, and nothing to hide the bar for.
+- **No space menu** — no menu button, no pinned links, nothing to search from
+  but the address bar. The window starts on a page and stays on pages.
+- **The address bar is always there**, with no *Pin to menu* button: there is
+  no link grid to pin to, and nothing to hide the bar for.
 - **No trail**, so no Trail button and no flyout — this window keeps no history
   of where it has been (`behaviors.md` → 1-shot windows).
 - **One pane**: no split, no right section, and so none of the buttons that
@@ -360,10 +391,10 @@ is independent of the window that opened it (which can close first).
 | `Shift+click` on a link | Flip the target section: the link opens on the left from either view (see `behaviors.md` → Navigation routing) |
 | `Ctrl+F` | Find in page |
 | `Ctrl+scroll` / `Ctrl+±` | Zoom the focused view (not persisted) |
-| `Escape` | Close open flyout |
+| `Escape` | Close open flyout (the space menu included) |
 
-Deliberately absent: `Ctrl+T` (no tabs) and `Ctrl+L` (no always-present
-address bar).
+Deliberately absent: `Ctrl+T` (no tabs), `Ctrl+L` (no always-present address
+bar), and any shortcut for the space menu — it is a button, not a mode.
 
 Shortcuts must work wherever focus sits, and while browsing that is the page,
 not Flank's chrome. `Alt+Left` and `Shift+click` are therefore intercepted by

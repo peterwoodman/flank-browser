@@ -26,23 +26,26 @@ per OS called out where it applies.
   time by the Spaces button at the end of the left section's toolbar. A space can also be
   opened directly with the `--space <name or id>` argument (for pinned
   shortcuts). The app exits when its last window closes.
-- **Two view states per section**: *home* (a launcher-like grid of pinned
-  links plus a search box — no browser) and *web* (an icon toolbar plus the
-  browser view; the toolbar sits on the side or the top, per settings). An address/search bar with a pin-to-home button appears
-  across the top of a web view only when its page is not one of the
-  space's home links.
+- **A section is a page**: an icon toolbar (on the side or the top, per
+  settings) and the browser view, with an address/search bar across the top
+  only when the page is not one of the space's pinned links. Before its first
+  page a section shows only the backdrop.
+- **The space menu** — the space's start menu: a panel of pinned links and a
+  search box that opens from the toolbar over the page, covering part of it
+  rather than replacing it. It light-dismisses, and a section with no page yet
+  shows it by default.
 - **Two sections per window**: a space window shows one section by
   default (the left). Navigating away from the left page opens the second
   (right) section, keeping the launched page in place — see `behaviors.md`
   for the full routing rules. A draggable split bar separates them.
 - **1-shot windows** — for the errand that belongs to no space: a plain browser
-  window, one page with an address bar, no home and no history, opened from the
-  button beside Spaces and browsing in that space's profile. Nothing about it is
-  remembered once it closes.
+  window, one page with an address bar, no space menu and no history, opened
+  from the button beside Spaces and browsing in that space's profile. Nothing
+  about it is remembered once it closes.
 
-Toolbar buttons (per web view): Open right view (left only, hidden while the
+Toolbar buttons (per section): Open right view (left only, hidden while the
 right is open) / Close view (right only) / Move page to left (right only) /
-Back (only while the browser can go back) / Home / Refresh / Trail
+Back (only while the browser can go back) / Space menu / Refresh / Trail
 (expandable per-view history) / extension icons / 1-shot window and Spaces
 (left only, at the far end).
 

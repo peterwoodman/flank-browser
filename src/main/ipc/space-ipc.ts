@@ -55,7 +55,7 @@ export function registerSpaceIpc(): void {
     controller(spaceId)?.openLink(sideOf(side), String(linkId));
   });
 
-  // Free-form input from the home search box or a suggestion row:
+  // Free-form input from the space menu's search box or a suggestion row:
   // URL-vs-search resolution happens here (docs/behaviors.md).
   ipcMain.handle('flank:section:submitInput', (_e, spaceId: string, side: unknown, text: string) => {
     const url = toUrl(String(text), settingsStore.current.searchTemplate);
@@ -75,14 +75,6 @@ export function registerSpaceIpc(): void {
       else controller(windowId)?.navigateAdhoc(s, url);
     }
   );
-
-  ipcMain.handle('flank:section:goHome', (_e, spaceId: string, side: unknown) => {
-    controller(spaceId)?.goHome(sideOf(side));
-  });
-
-  ipcMain.handle('flank:section:returnFromHome', (_e, spaceId: string, side: unknown) => {
-    controller(spaceId)?.returnFromHome(sideOf(side));
-  });
 
   ipcMain.handle('flank:section:refresh', (_e, windowId: string, side: unknown) => {
     chromeWindow(windowId)?.refresh(sideOf(side));
@@ -120,6 +112,15 @@ export function registerSpaceIpc(): void {
   // bar is always there).
   ipcMain.handle('flank:section:toggleAddressBar', (_e, spaceId: string, side: unknown) => {
     controller(spaceId)?.toggleAddressBar(sideOf(side));
+  });
+
+  // "Flank" / "Open In Place" (with or without "always") for a link that would
+  // open the right section (docs/behaviors.md); anything else is the question
+  // dismissed unanswered.
+  ipcMain.on('flank:route:respond', (_e, spaceId: string, id: string, choice: unknown) => {
+    const answer =
+      choice === 'place' || choice === 'placeAlways' || choice === 'flank' ? choice : null;
+    controller(spaceId)?.answerWhereToOpen(String(id), answer);
   });
 
   // --- Trail ---
@@ -163,7 +164,7 @@ export function registerSpaceIpc(): void {
       const w = chromeWindow(windowId);
       const trail = includeTrail ? (w?.sectionView(sideOf(side))?.trail ?? null) : null;
       return buildSuggestions(
-        `${windowId}:${String(side)}:${includeTrail ? 'addr' : 'home'}`,
+        `${windowId}:${String(side)}:${includeTrail ? 'addr' : 'menu'}`,
         String(text),
         space ? [...space.links].sort((a, b) => a.order - b.order) : null,
         trail
@@ -171,7 +172,7 @@ export function registerSpaceIpc(): void {
     }
   );
 
-  // --- Home grid links ---
+  // --- Pinned links (the space menu's grid) ---
 
   ipcMain.handle(
     'flank:links:add',
@@ -240,7 +241,7 @@ export function registerSpaceIpc(): void {
     openManager();
   });
 
-  // Pin the current page to the home grid (with live favicon capture).
+  // Pin the current page to the link grid (with live favicon capture).
   ipcMain.handle('flank:section:pin', async (_e, spaceId: string, side: unknown) => {
     await controller(spaceId)?.pinCurrentPage(sideOf(side));
   });

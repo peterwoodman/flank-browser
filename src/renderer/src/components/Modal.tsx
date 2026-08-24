@@ -5,7 +5,7 @@ import { useOverlay } from '../space/overlay';
  * Simple centered modal with light-dismiss via Escape. Raises the chrome
  * above the page views while open (no-op in the manager window, which has
  * none). With `local`, the modal centers over its nearest positioned
- * ancestor (e.g. one section's home view) instead of the whole window.
+ * ancestor (e.g. one section's chrome) instead of the whole window.
  */
 export function Modal({
   title,

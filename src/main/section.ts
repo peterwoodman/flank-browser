@@ -14,9 +14,9 @@ interface Tab {
 }
 
 /**
- * One space section: shows either the home view or a web view.
+ * One space section: a web view, or nothing at all before its first page.
  *
- * The left section treats each home link as a tab: its view stays loaded in
+ * The left section treats each pinned link as a tab: its view stays loaded in
  * the background after navigating away, so returning resumes without a page
  * reload. The `backgroundTabKeepCount` most recently used background tabs stay
  * loaded indefinitely; older ones are evicted after `backgroundTabMinutes`.
@@ -25,16 +25,15 @@ interface Tab {
 export class Section {
   private readonly tabs = new Map<string, Tab>();
   private activeTab: Tab | null = null;
-  private lastActiveTab: Tab | null = null;
   private dormantTrail: TrailEntry[] | null = null; // restored trail waiting for a view to own it
   private evictionTimer: NodeJS.Timeout | null = null;
 
   readonly isLeft: boolean;
   /**
    * The toolbar toggle's override of the default address-bar visibility
-   * (docs/ui.md → Web view). Null means "follow the home-link rule"; it goes
+   * (docs/ui.md → Web view). Null means "follow the pinned-link rule"; it goes
    * back to null when the section closes or a different tab is picked, so the
-   * override never outlives the browsing stretch it was made for.
+   * override never outlives the page it was made for.
    */
   addressBarOverride: boolean | null = null;
   private readonly space: Space;
@@ -56,17 +55,13 @@ export class Section {
     }
   }
 
-  get mode(): 'home' | 'web' {
-    return this.activeTab ? 'web' : 'home';
+  /** False before this section's first page, and after it has been reset. */
+  get hasPage(): boolean {
+    return this.activeTab !== null;
   }
 
   get activeView(): ContentView | null {
     return this.activeTab?.view ?? null;
-  }
-
-  /** The home ✕ returns to the last page view; without one the right section's ✕ closes it. */
-  get canReturnFromHome(): boolean {
-    return this.lastActiveTab !== null;
   }
 
   allViews(): ContentView[] {
@@ -93,33 +88,14 @@ export class Section {
   }
 
   private showTab(tab: Tab): void {
-    // A different page than the one this section was last showing: the
-    // address-bar override was made for that page's stretch, not this one.
-    // Returning from home to the same tab keeps it.
-    if (this.lastActiveTab !== tab) this.addressBarOverride = null;
     if (this.activeTab !== tab) {
+      // A different page than the one this section was showing: the
+      // address-bar override was made for that page, not this one.
+      this.addressBarOverride = null;
       if (this.activeTab) this.activeTab.hiddenAt = Date.now();
       this.activeTab = tab;
-      this.lastActiveTab = tab;
     }
     this.onViewsChanged();
-  }
-
-  showHome(): void {
-    if (this.activeTab) {
-      this.activeTab.hiddenAt = Date.now();
-      this.activeTab = null;
-    }
-    this.onViewsChanged();
-  }
-
-  /** The home ✕: back to the page this section was showing before home. */
-  returnFromHome(): boolean {
-    if (this.lastActiveTab) {
-      this.showTab(this.lastActiveTab);
-      return true;
-    }
-    return false;
   }
 
   openLink(link: SpaceLink): void {
@@ -158,7 +134,6 @@ export class Section {
       if (tab.view !== view) continue;
       this.tabs.delete(tab.key);
       if (this.activeTab === tab) this.activeTab = null;
-      if (this.lastActiveTab === tab) this.lastActiveTab = null;
     }
   }
 
@@ -168,9 +143,9 @@ export class Section {
    * playing media, and it takes on this section's rules from here on.
    *
    * The moved page inherits the *tab* of the page it replaces, trail included,
-   * rather than arriving as a stranger: replace a home link's page and the
-   * moved page becomes that link's tab, so going home and activating the link
-   * again resumes it like any other keep-alive tab
+   * rather than arriving as a stranger: replace a pinned link's page and the
+   * moved page becomes that link's tab, so activating the link from the space
+   * menu again resumes it like any other keep-alive tab
    * (docs/behaviors.md → Sections lifecycle). With nothing on show here it
    * becomes the ad-hoc page. Other background tabs are untouched.
    */
@@ -181,10 +156,7 @@ export class Section {
     view.setTrail(mergeTrails(view.trail, replaced?.view.trail ?? this.dormantTrail ?? []));
     this.dormantTrail = null;
 
-    if (replaced) {
-      this.tabs.delete(key);
-      if (this.lastActiveTab === replaced) this.lastActiveTab = null;
-    }
+    if (replaced) this.tabs.delete(key);
     this.activeTab = null;
 
     view.pinned = this.isLeft;
@@ -207,8 +179,6 @@ export class Section {
    * trail is kept and the URL lands on top of it.
    */
   promote(url: string): void {
-    if (!this.activeTab && this.lastActiveTab) this.showTab(this.lastActiveTab);
-
     if (this.activeTab) {
       this.activeTab.view.navigate(url);
       this.onViewsChanged();
@@ -231,7 +201,6 @@ export class Section {
       if (Date.now() - tab.hiddenAt < timeoutMs) continue;
 
       this.tabs.delete(tab.key);
-      if (this.lastActiveTab === tab) this.lastActiveTab = null; // ✕ has nothing to return to
       tab.view.destroy();
       changed = true;
     }
@@ -239,9 +208,8 @@ export class Section {
   }
 
   captureSession(open: boolean): SessionSection {
-    const view = (this.activeTab ?? this.lastActiveTab ?? this.tabs.get(ADHOC_KEY))?.view;
+    const view = (this.activeTab ?? this.tabs.get(ADHOC_KEY))?.view;
     return {
-      mode: this.mode,
       url: view?.currentUrl() ?? '',
       open,
       trail: view ? [...view.trail] : (this.dormantTrail ?? [])
@@ -250,7 +218,7 @@ export class Section {
 
   /** Loads the saved trail and, when `navigate` is set, reopens the last page. */
   restoreSession(sessionSection: SessionSection, navigate: boolean): void {
-    if (navigate && sessionSection.mode === 'web' && sessionSection.url) {
+    if (navigate && sessionSection.url) {
       const link = this.isLeft
         ? this.space.links.find((l) => l.url === sessionSection.url)
         : undefined;
@@ -266,12 +234,15 @@ export class Section {
     }
   }
 
-  /** Returns to home and unloads web views (used when the section is closed). */
+  /** Shows nothing and unloads web views (used when the section is closed). */
   reset(): void {
-    this.lastActiveTab = null; // parked views are blank; nothing to return to
     this.addressBarOverride = null; // the override ends with the section
-    this.showHome();
+    if (this.activeTab) {
+      this.activeTab.hiddenAt = Date.now();
+      this.activeTab = null;
+    }
     for (const tab of this.tabs.values()) tab.view.park();
+    this.onViewsChanged();
   }
 
   dispose(): void {
@@ -279,7 +250,6 @@ export class Section {
     for (const tab of this.tabs.values()) tab.view.destroy();
     this.tabs.clear();
     this.activeTab = null;
-    this.lastActiveTab = null;
   }
 }
 

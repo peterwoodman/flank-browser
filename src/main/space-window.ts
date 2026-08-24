@@ -1,4 +1,4 @@
-import { BaseWindow, MenuItemConstructorOptions, Session } from 'electron';
+import { BaseWindow, MenuItemConstructorOptions, Session, screen } from 'electron';
 import { Space, SessionFile } from '@shared/types';
 import { Rect, Side, SectionDto, SpaceStateDto } from '@shared/space-types';
 import { ChromeWindow } from './chrome-window';
@@ -20,16 +20,17 @@ const SPLIT_MAX = 0.85;
 const AUTOSAVE_MS = 30_000;
 
 /**
- * One window per space: the two sections (home view or web page each) and the
- * space's own rules — pinned-left navigation routing, keep-alive tabs, the
- * home grid, the trail, and session restore. The window shell itself is
- * `ChromeWindow`.
+ * One window per space: the two sections (a web page each) and the space's own
+ * rules — pinned-left navigation routing, keep-alive tabs, the link grid, the
+ * trail, and session restore. The window shell itself is `ChromeWindow`.
  */
 export class SpaceWindowController extends ChromeWindow {
   readonly space: Space;
   private readonly left: Section;
   private readonly right: Section;
   private rightOpen = false;
+  /** The click waiting on an answer to "in place, or in the flank?". */
+  private routeQuestion: { id: string; view: ContentView; url: string } | null = null;
   private readonly autosaveTimer: NodeJS.Timeout;
 
   constructor(space: Space, ses: Session) {
@@ -47,6 +48,12 @@ export class SpaceWindowController extends ChromeWindow {
     this.left = new Section(space, true, ses);
     this.right = new Section(space, false, ses);
     this.wireSections();
+
+    // A chrome load takes any question on screen with it (a crashed chrome, a
+    // dev reload); left pending, it would stop the window ever asking again.
+    this.chromeView.webContents.on('did-finish-load', () => {
+      this.routeQuestion = null;
+    });
 
     // Autosave guards against crashes (docs/behaviors.md → Session restore).
     this.autosaveTimer = setInterval(() => this.saveSession(), AUTOSAVE_MS);
@@ -71,6 +78,7 @@ export class SpaceWindowController extends ChromeWindow {
 
   protected override onWindowClosed(): void {
     clearInterval(this.autosaveTimer);
+    this.routeQuestion = null; // there is nowhere left to open it
     this.left.dispose();
     this.right.dispose();
   }
@@ -121,7 +129,7 @@ export class SpaceWindowController extends ChromeWindow {
     view.onFindRequested = () => this.notifyChrome('space:openFind', this.sideOf(view));
     view.onFoundInPage = (active, matches) =>
       this.notifyChrome('space:findResult', this.sideOf(view), active, matches);
-    // Only fire on a home link's tab: live favicons refresh its tile icon
+    // Only fire on a pinned link's tab: live favicons refresh its tile icon
     // (services on one domain — Gmail vs Calendar — only get distinct icons
     // this way), and its app's manifest background feeds the launch splash.
     view.onFaviconCaptured = (pageUrl, image) => this.onLinkFavicon(view, pageUrl, image);
@@ -135,23 +143,114 @@ export class SpaceWindowController extends ChromeWindow {
    * view, or a page asking for a tab, lands in the right section. The right
    * view is the free-browsing pane and navigates in place. A navigate-in-place
    * link keeps same-site navigations to itself.
+   *
+   * Opening the right section is the one routing decision Flank puts to the
+   * user, because it is the one the rules cannot read from the click: the
+   * question is where this page belongs, not what the link is. With the
+   * section already open the click just goes there, its trail keeping whatever
+   * it replaces.
    */
   private routeAway(view: ContentView, url: string): void {
     if (this.sideOf(view) !== 'left') view.navigate(url);
     else if (this.navigatesInPlace(view, url)) view.navigate(url);
-    else this.openInRight(url);
+    // A second request while the question is up (a script's `window.open`, the
+    // page being unclickable meanwhile) takes the answer Flank would have
+    // guessed rather than queueing behind it.
+    else if (this.rightOpen || this.routeQuestion || !view.clickedRecently) {
+      this.openInRight(url);
+    } else {
+      this.askWhereToOpen(view, url);
+    }
   }
 
   /**
-   * Whether a navigate-in-place link's tab keeps this navigation to itself:
-   * the target is on the same site as the page currently showing, so the
-   * section acts as that site's app window (docs/behaviors.md). Judged
-   * against the current page rather than the link's saved URL, so a site
-   * that redirects (outlook.com → outlook.live.com) still holds together.
+   * Puts the choice at the pointer that made it: **Open In Place** loads the
+   * link here, as shift+click would, and **Flank** opens the right section with
+   * it (docs/behaviors.md → Which section, when it isn't obvious). Asked only
+   * of a click — a page opening a tab on its own has no gesture to hang a
+   * question on, and the pointer would not be where the user is looking.
+   */
+  private askWhereToOpen(view: ContentView, url: string): void {
+    const id = newId();
+    this.routeQuestion = { id, view, url };
+    this.notifyChrome('space:routePrompt', { id, ...pointerInWindow(this.win) });
+    // The click left the keyboard in the page, and the question takes Escape
+    // and Enter.
+    this.chromeView.webContents.focus();
+  }
+
+  /**
+   * The chrome's answer. `placeAlways` is the same answer as `place` with the
+   * site remembered, so the question is not asked for it again; null is the
+   * question dismissed, which answers nothing and drops the click, the way
+   * walking away from a context menu drops the one that opened it.
+   */
+  answerWhereToOpen(id: string, choice: 'place' | 'placeAlways' | 'flank' | null): void {
+    const question = this.routeQuestion;
+    if (!question || question.id !== id) return;
+    this.routeQuestion = null;
+
+    const asked = question.view.webContents.isDestroyed() ? null : question.view;
+    // Recorded before the navigation, which is what makes the page the site.
+    if (choice === 'placeAlways' && asked) this.keepOwnLinks(asked);
+    if (choice === 'flank') this.openInRight(question.url);
+    else if (choice) asked?.navigate(question.url);
+
+    // However it ended, the keyboard belongs in a page again rather than in the
+    // chrome the question was answered in.
+    const landed = choice === 'flank' ? this.sectionView('right') : asked;
+    if (landed && !landed.webContents.isDestroyed()) landed.webContents.focus();
+  }
+
+  /**
+   * Whether a navigate-in-place page keeps this navigation to itself: the
+   * target is on the same site as the page currently showing, so the section
+   * acts as that site's app window (docs/behaviors.md). Judged against the
+   * current page rather than the link's saved URL, so a site that redirects
+   * (outlook.com → outlook.live.com) still holds together.
    */
   private navigatesInPlace(view: ContentView, url: string): boolean {
+    const current = view.currentUrl();
+    return this.keepsItsOwnLinks(view, current) && sameSite(current, url);
+  }
+
+  /**
+   * Two ways a page comes to hold its own links: the per-link switch in the
+   * Add/Edit link dialog, and the where-to-open question's "Always Open in
+   * Place", which records the site app-wide for pages that are not pinned.
+   */
+  private keepsItsOwnLinks(view: ContentView, pageUrl: string): boolean {
     const link = this.space.links.find((l) => l.id === view.linkId);
-    return link?.navigateInPlace === true && sameSite(view.currentUrl(), url);
+    if (link?.navigateInPlace === true) return true;
+    const host = comparableHost(pageUrl);
+    return (settingsStore.current.navigateInPlaceSites ?? []).some((site) =>
+      sameSiteHosts(site, host)
+    );
+  }
+
+  /**
+   * "Always Open in Place" from the question: a pinned link's own page sets
+   * that link's switch, which the menu's Edit dialog can turn back off; any
+   * other site is remembered app-wide, beside the permission answers
+   * (docs/data-model.md). A link's tab that has been navigated onto some other
+   * site is not that link's own page, so it records the site instead.
+   */
+  private keepOwnLinks(view: ContentView): void {
+    const pageUrl = view.currentUrl();
+    const link = this.space.links.find((l) => l.id === view.linkId);
+    if (link && sameSite(link.url, pageUrl)) {
+      link.navigateInPlace = true;
+      spacesStore.save();
+      this.pushState();
+      return;
+    }
+    const host = comparableHost(pageUrl);
+    if (!host) return;
+    settingsStore.update((s) => {
+      const sites = s.navigateInPlaceSites ?? [];
+      if (sites.some((site) => sameSiteHosts(site, host))) return;
+      s.navigateInPlaceSites = [...sites, host];
+    });
   }
 
   /** Which section is showing this view now. */
@@ -159,7 +258,7 @@ export class SpaceWindowController extends ChromeWindow {
     return this.left.owns(view) ? 'left' : 'right';
   }
 
-  /** A home-link tab reported its page's favicon; refresh the tile icon.
+  /** A pinned link's tab reported its page's favicon; refresh the tile icon.
    * Host-guarded: the tab can be navigated away from its link in place
    * (forms, shift+click) — some other site's icon must not take the tile. */
   private onLinkFavicon(view: ContentView, pageUrl: string, image: Buffer): void {
@@ -171,7 +270,7 @@ export class SpaceWindowController extends ChromeWindow {
     }
   }
 
-  /** A home-link tab read its app's manifest background; remember it for the
+  /** A pinned link's tab read its app's manifest background; remember it for the
    * launch splash. Host-guarded like the favicon. */
   private onLinkBackground(view: ContentView, pageUrl: string, background: string): void {
     const link = this.space.links.find((l) => l.id === view.linkId);
@@ -201,10 +300,10 @@ export class SpaceWindowController extends ChromeWindow {
   /** The active view of each open section. */
   protected override wantedViews(): Map<ContentView, Rect | null> {
     const wanted = new Map<ContentView, Rect | null>();
-    if (this.left.mode === 'web' && this.left.activeView) {
+    if (this.left.activeView) {
       wanted.set(this.left.activeView, this.layoutRects.left);
     }
-    if (this.rightOpen && this.right.mode === 'web' && this.right.activeView) {
+    if (this.rightOpen && this.right.activeView) {
       wanted.set(this.right.activeView, this.layoutRects.right);
     }
     return wanted;
@@ -221,19 +320,9 @@ export class SpaceWindowController extends ChromeWindow {
     this.section(side).navigateAdhoc(url);
   }
 
-  goHome(side: Side): void {
-    this.section(side).showHome();
-  }
-
-  returnFromHome(side: Side): void {
-    const returned = this.section(side).returnFromHome();
-    // Right home with nothing to return to: ✕ closes the section.
-    if (!returned && side === 'right') this.closeRightSection();
-  }
-
+  /** The toolbar's "Open right view": an empty section, its menu waiting. */
   openRight(): void {
     this.openRightSection();
-    this.right.showHome();
   }
 
   /**
@@ -322,7 +411,7 @@ export class SpaceWindowController extends ChromeWindow {
   }
 
   /**
-   * Pin the current page to the space's home grid. The manifest's short_name
+   * Pin the current page to the space's link grid. The manifest's short_name
    * is a cleaner tile label than the route-varying document title, and its
    * background color feeds the launch splash. The tile icon is captured live
    * from the page (best quality); the fallback fetch pipeline covers a miss.
@@ -358,13 +447,13 @@ export class SpaceWindowController extends ChromeWindow {
    * The toolbar's address-bar toggle: flips whatever is showing now and holds
    * that as the section's override (docs/ui.md → Web view). The override is
    * cleared by the section, not here — when it closes or a different page is
-   * picked from home.
+   * picked from the menu.
    */
   toggleAddressBar(side: Side): void {
     const section = this.section(side);
-    if (section.mode !== 'web') return;
+    if (!section.hasPage) return;
     const url = section.activeView?.currentUrl() ?? '';
-    const shownNow = section.addressBarOverride ?? !this.isFromHomeLink(url);
+    const shownNow = section.addressBarOverride ?? !this.isPinnedSite(url);
     section.addressBarOverride = !shownNow;
     this.pushState();
   }
@@ -437,18 +526,16 @@ export class SpaceWindowController extends ChromeWindow {
     const section = this.section(side);
     const view = section.activeView;
     const url = view?.currentUrl() ?? '';
-    const fromHomeLink = this.isFromHomeLink(url);
+    const pinned = this.isPinnedSite(url);
     return {
       side,
       open: side === 'left' || this.rightOpen,
-      mode: section.mode,
+      hasPage: section.hasPage,
       url,
       pageTitle: view?.pageTitle ?? '',
       canGoBack: view?.canGoBack ?? false,
-      showReturnButton: side === 'right' || section.canReturnFromHome,
-      returnCloses: side === 'right' && !section.canReturnFromHome,
-      showAddressBar: section.mode === 'web' && (section.addressBarOverride ?? !fromHomeLink),
-      showPinButton: !fromHomeLink,
+      showAddressBar: section.hasPage && (section.addressBarOverride ?? !pinned),
+      showPinButton: !pinned,
       trail: view ? [...view.trail] : [],
       loading: view?.loading ?? false,
       crashed: view?.crashed ?? false,
@@ -460,11 +547,11 @@ export class SpaceWindowController extends ChromeWindow {
   }
 
   /**
-   * The address bar hides when the page is one of the space's home links
+   * The address bar hides when the page is one of the space's pinned links
    * (docs/ui.md). Matching is by host — case-insensitive, ignoring `www.` —
    * so redirects and SPA routes within a pinned site still count.
    */
-  private isFromHomeLink(url: string): boolean {
+  private isPinnedSite(url: string): boolean {
     const host = comparableHost(url);
     if (host.length === 0) return true; // blank/parked: no bar either
     return this.space.links.some((l) => comparableHost(l.url) === host);
@@ -472,9 +559,24 @@ export class SpaceWindowController extends ChromeWindow {
 
   /** Window title tracks the left section's active page (docs/ui.md). */
   protected override onStatePushed(): void {
-    const pageTitle = this.left.mode === 'web' ? (this.left.activeView?.pageTitle ?? '') : '';
+    const pageTitle = this.left.activeView?.pageTitle ?? '';
     this.win.setTitle(pageTitle ? `${this.space.name} - ${pageTitle}` : this.space.name);
   }
+}
+
+/**
+ * The pointer in the window's own coordinates, clamped inside it. Read from the
+ * OS rather than from the page's click: a page reports coordinates in its own
+ * zoomed space, and a link activated with Enter carries none at all — where
+ * the pointer is resting is the honest answer in both cases.
+ */
+function pointerInWindow(win: BaseWindow): { x: number; y: number } {
+  const bounds = win.getContentBounds();
+  const cursor = screen.getCursorScreenPoint();
+  return {
+    x: Math.min(Math.max(cursor.x - bounds.x, 0), bounds.width),
+    y: Math.min(Math.max(cursor.y - bounds.y, 0), bounds.height)
+  };
 }
 
 /** Same scheme+host+port — the guard for live-captured link metadata. */
@@ -494,10 +596,13 @@ function sameAuthority(a: string, b: string): boolean {
  * gist.github.com are one site.
  */
 function sameSite(a: string, b: string): boolean {
-  const ha = comparableHost(a);
-  const hb = comparableHost(b);
-  if (!ha || !hb) return false;
-  return ha === hb || ha.endsWith('.' + hb) || hb.endsWith('.' + ha);
+  return sameSiteHosts(comparableHost(a), comparableHost(b));
+}
+
+/** The host relation behind it, for hosts already comparable (see below). */
+function sameSiteHosts(a: string, b: string): boolean {
+  if (!a || !b) return false;
+  return a === b || a.endsWith('.' + b) || b.endsWith('.' + a);
 }
 
 function comparableHost(url: string): string {

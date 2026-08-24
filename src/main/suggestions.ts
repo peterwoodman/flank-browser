@@ -11,9 +11,9 @@ const FETCH_TIMEOUT_MS = 4000;
 const inflight = new Map<string, AbortController>();
 
 /**
- * Builds the dropdown for a search/address box: local matches first (home
- * grid links, then this view's trail), engine completions below, deduped,
- * capped at eight rows (docs/behaviors.md → Search suggestions).
+ * Builds the dropdown for a search/address box: local matches first (the
+ * space's pinned links, then this view's trail), engine completions below,
+ * deduped, capped at eight rows (docs/behaviors.md → Search suggestions).
  */
 export async function buildSuggestions(
   boxKey: string,

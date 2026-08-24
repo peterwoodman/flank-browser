@@ -41,18 +41,16 @@ export interface SectionDto {
   side: Side;
   /** Right section only: whether it is currently shown. Left is always open. */
   open: boolean;
-  mode: 'home' | 'web';
+  /** False while the section holds no page: nothing but the backdrop, and the
+   * page-only toolbar buttons drop out (docs/ui.md → Space window). */
+  hasPage: boolean;
   url: string;
   pageTitle: string;
   canGoBack: boolean;
-  /** Home ✕ button: whether it is shown at all. */
-  showReturnButton: boolean;
-  /** Home ✕ button: true = "Close view" (right, nothing to return to), false = "Back to page". */
-  returnCloses: boolean;
-  /** Address bar shows when the page is not from a home link, unless the
-   * toolbar toggle has overridden that (docs/ui.md). */
+  /** Address bar shows when the page is not one of the space's pinned links,
+   * unless the toolbar toggle has overridden that (docs/ui.md). */
   showAddressBar: boolean;
-  /** Pin to home: hidden when the page is already a home link. */
+  /** Pin to menu: hidden when the page is already pinned. */
   showPinButton: boolean;
   trail: TrailEntry[];
   loading: boolean;
@@ -114,7 +112,7 @@ export interface SuggestionDto {
   text: string;
   /** Direct navigation target; null means "search for text". */
   url: string | null;
-  /** Home link backing a local match, so activation reuses its tab. */
+  /** Pinned link backing a local match, so activation reuses its tab. */
   linkId: string | null;
   /** Dimmed second line (the URL for local matches). */
   detail: string;

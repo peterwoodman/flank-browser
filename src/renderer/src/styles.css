@@ -293,12 +293,15 @@ select {
 }
 
 /* Contained variant: fills the nearest positioned ancestor (e.g. one
-   section's home view) instead of the window. */
+   section's chrome) instead of the window. */
 .overlay-local {
   position: absolute;
 }
 
 .overlay-dim {
+  /* Above the flyout tier (z 101): a dialog opened from a flyout — Add link,
+     from the space menu — must cover the flyout it came from. */
+  z-index: 102;
   background: rgba(0, 0, 0, 0.3);
   display: grid;
   place-items: center;

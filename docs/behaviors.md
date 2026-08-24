@@ -6,8 +6,8 @@ Rules for navigation, sections, trails, and browser features. UI layout is in
 ## Navigation routing
 
 The core idea: **the page you launch stays put in its section; leaving that
-page opens the right section.** Opening a link from home fills the same
-section with that page (a single-page web app can occupy the full window
+page opens the right section.** Opening a link from the space menu fills the
+same section with that page (a single-page web app can occupy the full window
 alone). Only when a link inside that page navigates away does the right
 section come into play. Origin does not matter: any user-initiated full
 navigation leaves the pinned page, so SPAs stay in one pane while opened
@@ -15,14 +15,14 @@ links land in the other.
 
 | Trigger | Result |
 |---|---|
-| Home grid link activated / search submitted | Navigates the **same** section from home to web view. The right section does not open. |
-| In-page link in the **left** web view causing a full top-level navigation | Opens in the **right** section (opening it if closed; replacing its current page if already open — the right view's trail keeps the replaced page recoverable). The left view stays pinned on its current page. Exception: a **navigate-in-place** link's tab keeps same-site targets to itself (see below). |
+| Link activated / search submitted in the space menu | Loads in the **same** section, replacing whatever it was showing. The right section does not open. |
+| In-page link in the **left** web view causing a full top-level navigation | Opens in the **right** section, replacing its current page (the right view's trail keeps the replaced page recoverable). Where that would *open* a closed right section, the choice is put to the user at the pointer instead — **Open In Place** or **Flank** (see below). The left view stays pinned on its current page. Exception: a **navigate-in-place** link's tab keeps same-site targets to itself (see below). |
 | SPA route changes, `#fragment` / pushState, reloads, redirects, back/forward, form submissions, and script-initiated navigations (redirect bounces, SSO hops) | Stay in place — these are the launched page doing its own thing, not leaving it. |
 | In-page link in the **right** web view | Navigates the right view in place. The right view is the free-browsing pane. |
-| Page requests a new tab (`target=_blank`, plain `window.open`) | From the left view: opens in the **right** section, except a navigate-in-place link's same-site target, which navigates the left view. From the right view: navigates the right view in place. No OS window is created. |
+| Page requests a new tab (`target=_blank`, plain `window.open`) | From the left view: opens in the **right** section — asked the same way when a click would open a closed one — except a navigate-in-place link's same-site target, which navigates the left view. From the right view: navigates the right view in place. No OS window is created. |
 | Page requests a sized popup (`window.open` with window features — sign-in, consent, and payment flows) | Opens as a real popup window belonging to the space window, titled with the page's origin since a popup has no address bar. Only `http(s)` targets and blank ones qualify; anything else is refused. Links out of it follow the rules above. |
 | **Shift+click** on an in-page link | Flips whatever the plain click would have done. From the left view it navigates the left view in place (instead of routing right) — but a navigate-in-place link's same-site target is the reverse: shift sends it to the **right**. From the right view it opens in the left view (the right section stays open, unlike "Move page to left"). |
-| Trail entry clicked, Home/toolbar actions | Explicit Flank UI actions always act on their own view in place. |
+| Trail entry clicked, menu and toolbar actions | Explicit Flank UI actions always act on their own view in place. |
 
 **Navigate in place** is a per-link checkbox in the Add/Edit link dialog. With
 it set, the link's section acts like the site's own app window: a user
@@ -30,7 +30,12 @@ navigation or new-tab request whose target is on the **same site** as the page
 currently showing loads in place instead of routing right. It suits sites
 that are really one app — a shop where each search should replace the page —
 and is wrong for hub sites like GitHub, where every click should land on the
-right; that's why it is per-link. Same site means equal hosts
+right; that's why it is per-link. A page that is not a pinned link gets the same
+treatment from the where-to-open question's **Always Open in Place** (below),
+which records the *site* instead of a link, app-wide — a site that is really one
+app is one app in every space. A link's switch is turned back off in its Edit
+dialog; a site's is removed from `navigateInPlaceSites` in `settings.json`,
+since the question that set it does not come back. Same site means equal hosts
 (case-insensitive, `www.` ignored) or one host a subdomain of the other
 (`github.com` and `gist.github.com` are one site). It is judged against the
 current page rather than the link's saved URL, so a site that redirects
@@ -70,10 +75,48 @@ has to be caught in the page (`preventDefault` on `http(s)` anchors, then post
 the URL to the host), because the engine's native shift+click opens a new OS
 window.
 
+### Which section, when it isn't obvious
+
+The rules above route a click by what the link is, and one of them is really a
+guess about intent: that a link leaving the pinned page wants a section of its
+own. Where the right section is already open the guess costs little — the page
+lands there and the right view's trail keeps whatever it replaced — but opening
+that section rearranges the window, and whether that is wanted depends on what
+the user is doing, which no property of the link reports.
+
+That one case is therefore asked rather than guessed. A click that would open a
+closed right section raises the answers at the pointer, stacked:
+
+- **Flank** — the right section opens with the link and the left view stays put.
+- **Open In Place** — the left view loads the link, leaving the page it was
+  pinned on (what shift+click does).
+- **Always Open in Place** — a checkbox beneath them, which makes that answer
+  the site's standing rule: navigate-in-place (above), set on the pinned link
+  where the clicked page is one and on the site itself where it is not. It names
+  one of the two answers and so applies to that one only — **Flank** with it
+  ticked remembers nothing, there being nothing about a link opened in the flank
+  worth recording.
+
+Dismissing the question — Escape, or a click anywhere else — drops the click,
+the way walking away from a context menu drops the one that opened it. The
+chrome is raised over the pages while the question is up, so nothing can be
+clicked behind it. A link activated with `Enter` has no pointer position of its
+own, so the question appears wherever the pointer is resting, clamped into the
+window.
+
+It is asked once per opening of the right section rather than once per link:
+with the section open, links route there silently, and shift+click answers in
+advance by loading in place. For a site that holds its own links it is not asked
+at all, its answer being on record. And it is asked only of a click — a page that opens
+a tab by itself (a `window.open` on a timer, an extension's
+`chrome.tabs.create`, a link out of a popup) routes right without a question,
+there being no gesture behind it and no reason to think the pointer is where the
+user is looking.
+
 ## Left-view tabs (keep-alive)
 
-Each home grid link behaves like a tab in the left section. Opening a link
-creates a live web view for it; going Home and opening another link keeps the
+Each pinned link behaves like a tab in the left section. Opening a link
+creates a live web view for it; opening another from the menu keeps the
 previous one loaded in the background. Activating the same link again resumes
 the page exactly where it was — scroll position, playing state, SPA state —
 with no reload.
@@ -87,7 +130,7 @@ with no reload.
 - Each tab has its own trail.
 - A page moved in from the right takes over the tab it replaces, so it resumes
   on that link like any other (see Sections lifecycle).
-- Searches from the home view share a single ad-hoc tab; a new search
+- Searches from the space menu share a single ad-hoc tab; a new search
   replaces its page.
 - This applies to the **left** section only. The right view is one
   free-browsing pane and is unloaded when the section closes.
@@ -105,15 +148,15 @@ with no reload.
   playing media, typed-in form state, and its own engine back history. From
   there it follows the left section's rules, so a link that leaves it opens
   the right section again.
-- A moved page takes over the tab of the page it replaces: move onto a home
-  link's page and the moved page *becomes* that link's tab, so going Home and
-  activating the link again resumes it, trail and all. The page it replaced is
+- A moved page takes over the tab of the page it replaces: move onto a pinned
+  link's page and the moved page *becomes* that link's tab, so activating the
+  link from the menu again resumes it, trail and all. The page it replaced is
   unloaded, and stays reachable through the trail beneath the moved page.
-  Moving onto the left's home view replaces nothing and makes the moved page
-  the ad-hoc page. Other background tabs are untouched.
+  Moving into a left section with no page yet replaces nothing and makes the
+  moved page the ad-hoc page. Other background tabs are untouched.
 - Closing the right section keeps its trail in the session file, so
   reopening the space later can restore it — but opening a *fresh* right
-  view via "Open right view" starts at home with the previous right trail
+  view via "Open right view" starts empty with the previous right trail
   still intact. After a move to the left there is nothing to keep: the trail
   went with the page.
 - A hidden or closed view must actually stop: closing the right section
@@ -171,10 +214,11 @@ A 1-shot window is a single free-browsing page, opened from a space window's
 
 ## Session restore
 
-- On window close: save `left`/`right` state (mode, URL, trail) and window
-  bounds, then dispose the web views.
-- On space open: restore window bounds, restore the left section (home
-  or its last URL) and the right section if it was open at close time.
+- On window close: save `left`/`right` state (URL, trail) and window bounds,
+  then dispose the web views.
+- On space open: restore window bounds, restore the left section's last page
+  (its menu opens over the backdrop when it had none) and the right section if
+  it was open at close time.
 - Window placement is never captured from a minimized window (it reports an
   off-screen position and a title-bar-sized rect), and implausible saved
   bounds (smaller than 300×200 or far off-screen) are ignored on restore in
@@ -243,7 +287,7 @@ folder.
 
 Defined in settings as a URL template with a `{query}` placeholder. Default
 is Ecosia (`https://www.ecosia.org/search?method=index&q={query}`). Used by the
-home view search box and the sections' address bars.
+space menu's search box and the sections' address bars.
 
 A template only counts as usable if it is an `http(s)` URL containing `{query}`
 — the typed text ends up in a navigation, so a `file:` template would turn the
@@ -256,10 +300,10 @@ falls back to the default.
 
 Both free-form entry points show an autocomplete dropdown while typing:
 
-- **Local matches first**: home grid links (pin icon), then — in the address
-  bar — this view's trail entries (history icon), up to 3 of each, matched
-  case-insensitively against title and URL, deduplicated by URL. Picking one
-  navigates directly to its URL; in the home view a link match opens its
+- **Local matches first**: the space's pinned links (pin icon), then — in the
+  address bar — this view's trail entries (history icon), up to 3 of each,
+  matched case-insensitively against title and URL, deduplicated by URL. Picking
+  one navigates directly to its URL; in the space menu a link match opens its
   keep-alive tab.
 - **Engine completions below** (search icon), fetched from the suggest
   endpoint in settings (`suggestTemplate`, default Qwant's
@@ -274,10 +318,10 @@ Both free-form entry points show an autocomplete dropdown while typing:
   the template in settings disables remote suggestions; local matches
   remain.
 
-## Favicons (home grid tiles)
+## Favicons (link grid tiles)
 
-- The icon shown on a home tile is the best icon the page offers — captured
-  live when a page is pinned and whenever a home-link tab loads, so tiles
+- The icon shown on a tile is the best icon the page offers — captured live
+  when a page is pinned and whenever a pinned link's tab loads, so tiles
   distinguish services that share a domain (e.g. Gmail vs Calendar).
 - Sources are tried in order of quality: (1) the site's **web app manifest**
   icons (its own installable app icons, fetched same-origin so cookies apply;

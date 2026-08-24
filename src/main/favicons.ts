@@ -8,11 +8,11 @@ import { readManifest } from './manifest-info';
 import type { ContentView } from './content-view';
 
 /**
- * Manages the home grid favicon cache (<data>/icons).
+ * Manages the link grid favicon cache (<data>/icons).
  *
  * Two sources, in order of fidelity:
  * - `storeIcon` saves the favicon the page itself declared, captured live
- *   from an open view (pinning a page, or a home-link tab loading). This is
+ *   from an open view (pinning a page, or a pinned link's tab loading). This is
  *   what real browsers show, and the only way per-service icons work
  *   (mail/calendar/drive.google.com all get the generic "G" from icon
  *   services; hosts differing only by port get nothing).
@@ -61,7 +61,7 @@ export function storeIcon(link: SpaceLink, image: Buffer): boolean {
  * host process: outside the page's sandbox, outside CORS, and on every network
  * the machine can reach. So only `http(s)` is fetched, and a loopback or
  * private-network target is refused unless the page asking for it lives on that
- * host itself — otherwise any site could use a home tile to probe what is
+ * host itself — otherwise any site could use a link tile to probe what is
  * listening behind the machine. Pass `localHost` (the page's or link's own
  * hostname) to permit that case, which is how a LAN service keeps its icon.
  */
@@ -211,7 +211,7 @@ JSON.stringify([...document.querySelectorAll(
     .map(l => ({ href: l.href, rel: l.rel, sizes: (l.sizes && l.sizes.value) || '' })))`;
 
 /**
- * Best favicon for a home tile (docs/behaviors.md → Favicons). Priority: the
+ * Best favicon for a link tile (docs/behaviors.md → Favicons). Priority: the
  * PWA manifest's app icons, then the page's declared <link> icons (largest
  * raster; apple-touch is ~180 px), then the engine-reported favicon URLs,
  * which are tab-sized and upscale blurry.

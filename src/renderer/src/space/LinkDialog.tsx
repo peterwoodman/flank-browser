@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from '../components/Modal';
 
-/** Add/Edit home link dialog: URL and title; icon is auto-fetched from the favicon. */
+/** Add/Edit link dialog for the space menu's grid: URL and title; the icon is
+ *  auto-fetched from the favicon. */
 export function LinkDialog({
   title,
   initialTitle,
@@ -31,8 +32,8 @@ export function LinkDialog({
   };
 
   return (
-    // local: centers over this section's home view, not the window — the
-    // other section may be showing a page.
+    // local: centers over this section, not the window — the other section
+    // may be showing a page.
     <Modal title={title} onDismiss={onCancel} local>
       <div className="link-dialog-fields">
         <label className="field-label" htmlFor="link-title">

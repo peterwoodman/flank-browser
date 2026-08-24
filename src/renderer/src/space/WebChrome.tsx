@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { SpaceLink } from '@shared/types';
 import type {
   ExtensionButtonDto,
   LoadErrorDto,
@@ -11,12 +12,13 @@ import { invoke, on, send } from '../ipc';
 import { SuggestInput } from './SuggestInput';
 import { FindBar } from './FindBar';
 import { TrailFlyout } from './TrailFlyout';
+import { SpaceMenu } from './SpaceMenu';
 import {
   AddressBarIcon,
   BackIcon,
   CloseIcon,
   GridIcon,
-  HomeIcon,
+  MenuIcon,
   OneShotIcon,
   OpenRightIcon,
   PinIcon,
@@ -28,23 +30,24 @@ import {
 
 /**
  * Which window this chrome is a pane of. A space window's pane can reach the
- * things a space has — home, the other section, pinning, the Manager — where a
- * 1-shot window's pane is only ever the page it is on (docs/ui.md).
+ * things a space has — the menu, the other section, pinning, the Manager —
+ * where a 1-shot window's pane is only ever the page it is on (docs/ui.md).
  */
 export type WebChromeKind = 'space' | 'oneshot';
 
 /**
- * A web view's chrome (docs/ui.md → Web view): the icon toolbar (down the
+ * A section's chrome (docs/ui.md → Space window): the icon toolbar (down the
  * section's left edge, or across its top — a setting), the contextual address
  * bar, and the content hole the browser view is positioned into by the main
  * process. Splash/crash overlays paint in the hole while the view itself is
- * hidden.
+ * hidden; with no page at all the hole carries the backdrop instead.
  */
 export function WebChrome({
   windowId,
   kind = 'space',
   section,
   rightOpen,
+  links = [],
   extensions,
   toolbarPosition,
   layoutKey
@@ -53,15 +56,27 @@ export function WebChrome({
   kind?: WebChromeKind;
   section: SectionDto;
   rightOpen: boolean;
+  /** The space's pinned links, for the menu; a 1-shot window has none. */
+  links?: SpaceLink[];
   extensions: ExtensionButtonDto[];
   toolbarPosition: ToolbarPosition;
   layoutKey: string;
 }): React.JSX.Element {
   const side = section.side;
   const inSpace = kind === 'space';
+  const hasPage = section.hasPage;
   const holeRef = useRef<HTMLDivElement>(null);
   const [trailOpen, setTrailOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const closeMenu = useCallback(() => setMenuOpen(false), []);
+
+  // A section with no page has nothing to show but the menu, so it opens
+  // itself; a page arriving closes it. In between it is dismissable like any
+  // flyout — the empty backdrop is a legitimate thing to be looking at.
+  useEffect(() => {
+    setMenuOpen(!hasPage);
+  }, [hasPage]);
 
   // Ctrl+F in the page arrives from the main process (the shortcut lands in
   // the focused content view, not the chrome).
@@ -100,16 +115,20 @@ export function WebChrome({
     void invoke('section:addressSubmit', windowId, side, text, suggestion?.url ?? null);
   };
 
+  const classes = ['web-chrome'];
+  if (toolbarPosition === 'top') classes.push('toolbar-top');
+  if (!hasPage) classes.push('empty');
+
   return (
-    <div className={toolbarPosition === 'top' ? 'web-chrome toolbar-top' : 'web-chrome'}>
+    <div className={classes.join(' ')}>
       <div className="toolbar">
-        {inSpace && side === 'left' && !rightOpen && (
+        {inSpace && (
           <button
             className="icon-button"
-            title="Open right view"
-            onClick={() => void invoke('section:openRight', windowId)}
+            title="Space menu"
+            onClick={() => setMenuOpen((open) => !open)}
           >
-            <OpenRightIcon />
+            <MenuIcon />
           </button>
         )}
         {side === 'right' && (
@@ -121,10 +140,10 @@ export function WebChrome({
             <CloseIcon />
           </button>
         )}
-        {side === 'right' && (
+        {side === 'right' && hasPage && (
           <button
             className="icon-button"
-            title="Move page to left"
+            title="Un-Flank"
             onClick={() => void invoke('section:promote', windowId)}
           >
             <PromoteIcon />
@@ -139,23 +158,16 @@ export function WebChrome({
             <BackIcon />
           </button>
         )}
-        {inSpace && (
+        {hasPage && (
           <button
             className="icon-button"
-            title="Home"
-            onClick={() => void invoke('section:goHome', windowId, side)}
+            title="Refresh"
+            onClick={() => void invoke('section:refresh', windowId, side)}
           >
-            <HomeIcon />
+            <RefreshIcon />
           </button>
         )}
-        <button
-          className="icon-button"
-          title="Refresh"
-          onClick={() => void invoke('section:refresh', windowId, side)}
-        >
-          <RefreshIcon />
-        </button>
-        {inSpace && (
+        {inSpace && hasPage && (
           <button
             className="icon-button"
             title={section.showAddressBar ? 'Hide address bar' : 'Show address bar'}
@@ -169,25 +181,35 @@ export function WebChrome({
             <TrailIcon />
           </button>
         )}
-        {extensions.length > 0 && <div className="toolbar-separator" />}
-        {extensions.map((ext) => (
+       {inSpace && side === 'left' && !rightOpen && (
           <button
-            key={ext.id}
-            className="icon-button ext-button"
-            title={ext.name}
-            onClick={(e) => {
-              const r = e.currentTarget.getBoundingClientRect();
-              void invoke('ext:activate', windowId, side, ext.id, {
-                x: Math.round(r.x),
-                y: Math.round(r.y),
-                width: Math.round(r.width),
-                height: Math.round(r.height)
-              });
-            }}
+            className="icon-button"
+            title="Flank"
+            onClick={() => void invoke('section:openRight', windowId)}
           >
-            {ext.icon ? <img className="ext-icon" src={ext.icon} alt="" /> : <PuzzleIcon />}
+            <OpenRightIcon />
           </button>
-        ))}
+        )}
+        {hasPage && extensions.length > 0 && <div className="toolbar-separator" />}
+        {hasPage &&
+          extensions.map((ext) => (
+            <button
+              key={ext.id}
+              className="icon-button ext-button"
+              title={ext.name}
+              onClick={(e) => {
+                const r = e.currentTarget.getBoundingClientRect();
+                void invoke('ext:activate', windowId, side, ext.id, {
+                  x: Math.round(r.x),
+                  y: Math.round(r.y),
+                  width: Math.round(r.width),
+                  height: Math.round(r.height)
+                });
+              }}
+            >
+              {ext.icon ? <img className="ext-icon" src={ext.icon} alt="" /> : <PuzzleIcon />}
+            </button>
+          ))}
         <div className="toolbar-spacer" />
         {inSpace && side === 'left' && (
           <>
@@ -224,7 +246,7 @@ export function WebChrome({
             {inSpace && section.showPinButton && (
               <button
                 className="icon-button"
-                title="Pin to home"
+                title="Pin to menu"
                 onClick={() => void invoke('section:pin', windowId, side)}
               >
                 <PinIcon />
@@ -238,6 +260,8 @@ export function WebChrome({
         <div className="loadbar-lane">{section.loading && <div className="loadbar" />}</div>
 
         <div ref={holeRef} className="content-hole">
+          {/* No page here: the backdrop takes the hole, with the menu over it. */}
+          {!hasPage && <div className="section-empty" />}
           {section.splash && (
             <div
               className="splash"
@@ -323,6 +347,10 @@ export function WebChrome({
           trail={section.trail}
           onClose={() => setTrailOpen(false)}
         />
+      )}
+
+      {inSpace && menuOpen && (
+        <SpaceMenu spaceId={windowId} side={side} links={links} onClose={closeMenu} />
       )}
     </div>
   );

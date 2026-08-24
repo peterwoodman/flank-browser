@@ -80,7 +80,7 @@ export abstract class ChromeWindow {
   private readonly authResolvers = new Map<string, (answer: AuthAnswer | null) => void>();
   private readonly clientCertResolvers = new Map<string, (fingerprint: string | null) => void>();
   private screenShareResolver: ((choice: string | null) => void) | null = null;
-  /** Last colors the chrome reported for the window's leading page; null on home. */
+  /** Last colors the chrome reported for the window's leading page; null with no page. */
   protected chromeColors: PageColors | null = null;
   private extensionPopup: ExtensionPopup | null = null;
 

@@ -4,14 +4,14 @@ import { invoke, on, send } from '../ipc';
 import { washVars } from '../wash';
 import { useOverlayController } from './overlay';
 import { WindowShell } from './WindowShell';
-import { HomeView } from './HomeView';
 import { WebChrome } from './WebChrome';
+import { RouteChoice, RouteChoiceAnswer, RoutePromptDto } from './RouteChoice';
 import { resolveChromeColors } from './colors';
 import './space.css';
 
 /**
- * A space window's chrome: title bar, the two sections (home or web chrome),
- * and the split bar. Pure view of the main process's state snapshots.
+ * A space window's chrome: title bar, the two sections, and the split bar.
+ * Pure view of the main process's state snapshots.
  */
 export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX.Element {
   const [state, setState] = useState<SpaceStateDto | null>(null);
@@ -30,9 +30,7 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
   // Window theme follows the left section's active page (docs/ui.md →
   // Adaptive chrome): dark/light for the chrome's own controls, and the
   // resolved colors go to main to tint the native caption buttons.
-  const leftColors = resolveChromeColors(
-    state?.left.mode === 'web' ? state.left.colors : null
-  );
+  const leftColors = resolveChromeColors(state?.left.hasPage ? state.left.colors : null);
   useEffect(() => {
     document.documentElement.style.colorScheme = leftColors
       ? leftColors.dark
@@ -41,6 +39,20 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
       : '';
     send('space:chromeColors', spaceId, leftColors ? { bg: leftColors.bg, fg: leftColors.fg } : null);
   }, [spaceId, leftColors?.bg, leftColors?.fg, leftColors?.dark]);
+
+  // Where a link should open, asked when one would open the right section
+  // (docs/behaviors.md → Which section, when it isn't obvious). One at a time:
+  // main asks again rather than queueing.
+  const [routePrompt, setRoutePrompt] = useState<RoutePromptDto | null>(null);
+  useEffect(() => {
+    return on('space:routePrompt', (...args) => setRoutePrompt(args[0] as RoutePromptDto));
+  }, []);
+
+  const answerRoute = (choice: RouteChoiceAnswer): void => {
+    if (!routePrompt) return;
+    send('route:respond', spaceId, routePrompt.id, choice);
+    setRoutePrompt(null);
+  };
 
   // Shift+Left/Right nudge the splitter when the chrome holds focus (the
   // content preload covers the web views). Skipped while editing text or
@@ -94,19 +106,16 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
   const columns = state.rightOpen
     ? `minmax(200px, ${ratio}fr) 6px minmax(200px, ${1 - ratio}fr)`
     : 'minmax(0, 1fr)';
-  const title =
-    state.left.mode === 'web' && state.left.pageTitle
-      ? `${state.name} - ${state.left.pageTitle}`
-      : state.name;
+  const title = state.left.pageTitle ? `${state.name} - ${state.left.pageTitle}` : state.name;
 
   return (
     <WindowShell
       windowId={spaceId}
       overlay={overlay}
       title={title}
-      // The title bar joins the backdrop wash while the left section is home,
-      // and wears the page's adaptive color with a page there.
-      titlebarClassName={state.left.mode === 'home' ? 'titlebar titlebar-wash' : 'titlebar'}
+      // The title bar joins the backdrop wash while the left section holds no
+      // page, and wears the page's adaptive color with one there.
+      titlebarClassName={state.left.hasPage ? 'titlebar' : 'titlebar titlebar-wash'}
       titlebarStyle={
         leftColors
           ? ({ '--chrome-bg': leftColors.bg, '--chrome-fg': leftColors.fg } as React.CSSProperties)
@@ -124,6 +133,7 @@ export function SpaceApp({ windowId: spaceId }: { windowId: string }): React.JSX
         )}
         {state.rightOpen && <SectionPane spaceId={spaceId} state={state} section={state.right} />}
       </div>
+      {routePrompt && <RouteChoice prompt={routePrompt} onAnswer={answerRoute} />}
     </WindowShell>
   );
 }
@@ -137,25 +147,22 @@ function SectionPane({
   state: SpaceStateDto;
   section: SectionDto;
 }): React.JSX.Element {
-  const resolved = section.mode === 'web' ? resolveChromeColors(section.colors) : null;
+  const resolved = section.hasPage ? resolveChromeColors(section.colors) : null;
   const colorVars = resolved
     ? ({ '--chrome-bg': resolved.bg, '--chrome-fg': resolved.fg } as React.CSSProperties)
     : undefined;
 
   return (
     <div className="section" style={colorVars}>
-      {section.mode === 'home' ? (
-        <HomeView spaceId={spaceId} section={section} links={state.links} />
-      ) : (
-        <WebChrome
-          windowId={spaceId}
-          section={section}
-          rightOpen={state.rightOpen}
-          extensions={state.extensions}
-          toolbarPosition={state.toolbarPosition}
-          layoutKey={`${state.splitRatio}:${section.showAddressBar}:${state.rightOpen}:${state.toolbarPosition}`}
-        />
-      )}
+      <WebChrome
+        windowId={spaceId}
+        section={section}
+        rightOpen={state.rightOpen}
+        links={state.links}
+        extensions={state.extensions}
+        toolbarPosition={state.toolbarPosition}
+        layoutKey={`${state.splitRatio}:${section.showAddressBar}:${state.rightOpen}:${state.toolbarPosition}`}
+      />
     </div>
   );
 }

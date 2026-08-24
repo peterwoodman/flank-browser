@@ -42,7 +42,7 @@
 }
 
 /* Fills the content area so "Add profile" can sit at the bottom edge while the
-   tiles don't reach it (like the home view's "Add link"). */
+   tiles don't reach it. */
 .profiles-view {
   min-height: 100%;
   display: flex;
