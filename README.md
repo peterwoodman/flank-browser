@@ -16,11 +16,11 @@ section's chrome takes its page's colors, and an address bar appears only over
 a page that isn't one of the space's pinned sites — the left has none, the
 right does.
 
-![A space's home view: a search box above a grid of pinned site icons](docs/images/home.png)
+![A space window on its empty backdrop, with a flyout of pinned site icons and a search box](docs/images/home.png)
 
-Every space opens on its own home grid — pinned sites and a search box, with no
-browser chrome until a page needs it. Each pinned site keeps its page alive in
-the background, so going home and coming back resumes exactly where you were.
+Every space opens on its own backdrop with the space menu already up — pinned
+sites and a search box. Each pinned site keeps its page alive in the
+background, so leaving it and coming back resumes exactly where you were.
 
 ![The Manager window showing four space tiles, each with a montage of site favicons](docs/images/manager.png)
 
