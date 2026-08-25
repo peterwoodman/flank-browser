@@ -298,14 +298,15 @@ doesn't arrive):
 
 #### Where-to-open question
 
-A small flyout at the pointer, appearing over the page when a click would open
-the closed right section (`behaviors.md` → Which section, when it isn't
-obvious). Its answers are stacked and equally wide, so neither reads as the
+A small flyout at the gesture, appearing over the page when a click or `Enter`
+would open the closed right section (`behaviors.md` → Which section, when it
+isn't obvious). A click puts it at the pointer; `Enter` puts it at the focused
+control. Its answers are stacked and equally wide, so neither reads as the
 lesser one: **Flank** on top, accented and focused so `Enter` takes it, then
 **Open In Place**, then an **Always Open in Place** checkbox in the muted
 smaller type of a note about the answer above it. It light-dismisses like a
 context menu — `Escape` or a click anywhere else — and dismissing drops the click
-rather than choosing for the user. It flips to the other side of the pointer
+rather than choosing for the user. It flips to the other side of that point
 rather than overflowing a window edge.
 
 #### Trail flyout

@@ -11,6 +11,40 @@ function post(message: string): void {
   ipcRenderer.send('flank:content', message);
 }
 
+/**
+ * Top-left of the focused control, as a fraction of this viewport. Walks
+ * into same-origin iframes and open shadow roots so a search box nested
+ * in either still reports where the user is looking. Null when nothing
+ * useful has focus (the host then falls back to the pointer).
+ */
+function focusedViewportFraction(): { x: number; y: number } | null {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (!vw || !vh) return null;
+  let el: Element | null = document.activeElement;
+  let ox = 0;
+  let oy = 0;
+  for (;;) {
+    while (el?.shadowRoot?.activeElement) el = el.shadowRoot.activeElement;
+    if (!(el instanceof HTMLIFrameElement)) break;
+    try {
+      const inner = el.contentDocument;
+      if (!inner) break;
+      const frame = el.getBoundingClientRect();
+      ox += frame.left;
+      oy += frame.top;
+      el = inner.activeElement;
+    } catch {
+      break;
+    }
+  }
+  const doc = el?.ownerDocument;
+  if (!el || !doc || el === doc.body || el === doc.documentElement) return null;
+  const r = el.getBoundingClientRect();
+  if (r.width <= 0 && r.height <= 0) return null;
+  return { x: (ox + r.left) / vw, y: (oy + r.top) / vh };
+}
+
 // Form submissions must stay in the pinned left view (POST data cannot be
 // transplanted to another view); navigations shortly after one stay in place.
 document.addEventListener('submit', () => post('formsubmit'), true);
@@ -29,7 +63,12 @@ window.addEventListener(
 window.addEventListener(
   'keydown',
   (e) => {
-    if (e.key === 'Enter') post('gesture');
+    if (e.key !== 'Enter') return;
+    // A click has the pointer; Enter does not. The host hangs the
+    // where-to-open question on the focused control instead, as a
+    // fraction of this viewport so zoom does not leak into the chrome.
+    const focus = focusedViewportFraction();
+    post(focus ? `gesture:focus:${focus.x},${focus.y}` : 'gesture');
   },
   true
 );

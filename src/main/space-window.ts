@@ -164,16 +164,16 @@ export class SpaceWindowController extends ChromeWindow {
   }
 
   /**
-   * Puts the choice at the pointer that made it: **Open In Place** loads the
+   * Puts the choice at the gesture that made it: **Open In Place** loads the
    * link here, as shift+click would, and **Flank** opens the right section with
    * it (docs/behaviors.md → Which section, when it isn't obvious). Asked only
-   * of a click — a page opening a tab on its own has no gesture to hang a
-   * question on, and the pointer would not be where the user is looking.
+   * of a click or Enter — a page opening a tab on its own has no gesture to
+   * hang a question on, and the pointer would not be where the user is looking.
    */
   private askWhereToOpen(view: ContentView, url: string): void {
     const id = newId();
     this.routeQuestion = { id, view, url };
-    this.notifyChrome('space:routePrompt', { id, ...pointerInWindow(this.win) });
+    this.notifyChrome('space:routePrompt', { id, ...questionPoint(this.win, view) });
     // The click left the keyboard in the page, and the question takes Escape
     // and Enter.
     this.chromeView.webContents.focus();
@@ -565,17 +565,37 @@ export class SpaceWindowController extends ChromeWindow {
 }
 
 /**
- * The pointer in the window's own coordinates, clamped inside it. Read from the
- * OS rather than from the page's click: a page reports coordinates in its own
- * zoomed space, and a link activated with Enter carries none at all — where
- * the pointer is resting is the honest answer in both cases.
+ * Where the where-to-open question sits, in the chrome's coordinates. A click
+ * uses the OS pointer rather than the page's own click: those coordinates are
+ * in the page's zoomed space. Enter has no pointer, so the focused control's
+ * viewport fraction is mapped through the content view's bounds instead.
  */
+function questionPoint(win: BaseWindow, view: ContentView): { x: number; y: number } {
+  const focus = view.enterFocus;
+  const viewBounds = view.view.getBounds();
+  if (focus && viewBounds.width > 0 && viewBounds.height > 0) {
+    const content = win.getContentBounds();
+    return clampPoint(
+      viewBounds.x + focus.x * viewBounds.width,
+      viewBounds.y + focus.y * viewBounds.height,
+      content.width,
+      content.height
+    );
+  }
+  return pointerInWindow(win);
+}
+
+/** The pointer in the window's own coordinates, clamped inside it. */
 function pointerInWindow(win: BaseWindow): { x: number; y: number } {
   const bounds = win.getContentBounds();
   const cursor = screen.getCursorScreenPoint();
+  return clampPoint(cursor.x - bounds.x, cursor.y - bounds.y, bounds.width, bounds.height);
+}
+
+function clampPoint(x: number, y: number, width: number, height: number): { x: number; y: number } {
   return {
-    x: Math.min(Math.max(cursor.x - bounds.x, 0), bounds.width),
-    y: Math.min(Math.max(cursor.y - bounds.y, 0), bounds.height)
+    x: Math.min(Math.max(Math.round(x), 0), width),
+    y: Math.min(Math.max(Math.round(y), 0), height)
   };
 }
 

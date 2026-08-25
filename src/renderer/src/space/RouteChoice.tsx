@@ -3,7 +3,7 @@ import { useOverlay } from './overlay';
 
 export interface RoutePromptDto {
   id: string;
-  /** The pointer that made the click, in window coordinates. */
+  /** The gesture that opened it, in window coordinates. */
   x: number;
   y: number;
 }
@@ -12,9 +12,9 @@ export interface RoutePromptDto {
 export type RouteChoiceAnswer = 'flank' | 'place' | 'placeAlways' | null;
 
 /**
- * Where a link should open, asked at the pointer that clicked it
+ * Where a link should open, asked at the gesture that activated it
  * (docs/behaviors.md → Which section, when it isn't obvious). The page behind
- * it says what was clicked, so the question carries no text of its own — only
+ * it says what was activated, so the question carries no text of its own — only
  * the two answers, and the option to stop being asked for this site.
  *
  * Dismissing — Escape, or a click anywhere else — answers nothing and drops the

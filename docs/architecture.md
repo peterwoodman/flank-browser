@@ -171,7 +171,8 @@ main process
   `OneShotStateDto`).
 - **`content.ts`** — page instrumentation: shift+click interception,
   `Alt+Left`, `Shift+←/→` split
-  nudges, form-submit reporting, the adaptive color reporter
+  nudges, form-submit reporting, gesture reporting (a click, or Enter with
+  the focused control's viewport fraction), the adaptive color reporter
   (theme-color/computed colors, re-reported on change), DOM-ready/load
   signals for the load bar, and Ctrl+wheel zoom.
 - **`extension-compat.ts`** — registered on every profile session for extension
@@ -183,7 +184,7 @@ main process
 | Behavior | Electron mechanism |
 |---|---|
 | Navigation routing (leave the pinned page → right section) | `will-navigate` `preventDefault()` + a programmatic-navigation flag, since the event carries no user-gesture flag |
-| Asking which section a link opens in | The navigation is cancelled as always and the answer starts a fresh one, so nothing waits on the user; the question carries `screen.getCursorScreenPoint()` less the window's content bounds, the page's own click coordinates being in its zoomed space. One question at a time — a request arriving while it is up takes the answer Flank would have guessed |
+| Asking which section a link opens in | The navigation is cancelled as always and the answer starts a fresh one, so nothing waits on the user. A click carries `screen.getCursorScreenPoint()` less the window's content bounds, the page's own click coordinates being in its zoomed space; Enter carries the focused control as a viewport fraction mapped through the content view's bounds. One question at a time — a request arriving while it is up takes the answer Flank would have guessed |
 | New tabs and popups | `setWindowOpenHandler`: `deny` + route per `behaviors.md`, or `allow` for sized popups (`disposition: 'new-window'`) whose target is `http(s)` or blank — a window the host opens is a host navigation, so the engine's own scheme block does not apply to it |
 | Page instrumentation (shift+click, gestures, colors) | the content-view preload |
 | Extensions | `session.extensions.loadExtension` + `electron-chrome-extensions` |

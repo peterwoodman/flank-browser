@@ -16,7 +16,7 @@ links land in the other.
 | Trigger | Result |
 |---|---|
 | Link activated / search submitted in the space menu | Loads in the **same** section, replacing whatever it was showing. The right section does not open. |
-| In-page link in the **left** web view causing a full top-level navigation | Opens in the **right** section, replacing its current page (the right view's trail keeps the replaced page recoverable). Where that would *open* a closed right section, the choice is put to the user at the pointer instead — **Open In Place** or **Flank** (see below). The left view stays pinned on its current page. Exception: a **navigate-in-place** link's tab keeps same-site targets to itself (see below). |
+| In-page link in the **left** web view causing a full top-level navigation | Opens in the **right** section, replacing its current page (the right view's trail keeps the replaced page recoverable). Where that would *open* a closed right section, the choice is put to the user at the pointer or focused control instead — **Open In Place** or **Flank** (see below). The left view stays pinned on its current page. Exception: a **navigate-in-place** link's tab keeps same-site targets to itself (see below). |
 | SPA route changes, `#fragment` / pushState, reloads, redirects, back/forward, form submissions, and script-initiated navigations (redirect bounces, SSO hops) | Stay in place — these are the launched page doing its own thing, not leaving it. |
 | In-page link in the **right** web view | Navigates the right view in place. The right view is the free-browsing pane. |
 | Page requests a new tab (`target=_blank`, plain `window.open`) | From the left view: opens in the **right** section — asked the same way when a click would open a closed one — except a navigate-in-place link's same-site target, which navigates the left view. From the right view: navigates the right view in place. No OS window is created. |
@@ -100,18 +100,17 @@ closed right section raises the answers at the pointer, stacked:
 Dismissing the question — Escape, or a click anywhere else — drops the click,
 the way walking away from a context menu drops the one that opened it. The
 chrome is raised over the pages while the question is up, so nothing can be
-clicked behind it. A link activated with `Enter` has no pointer position of its
-own, so the question appears wherever the pointer is resting, clamped into the
-window.
+clicked behind it. A click raises the answers at the pointer. `Enter` in a
+text box (or on a focused link) has no pointer of its own, so the question
+appears at the focused control instead, clamped into the window.
 
 It is asked once per opening of the right section rather than once per link:
 with the section open, links route there silently, and shift+click answers in
 advance by loading in place. For a site that holds its own links it is not asked
-at all, its answer being on record. And it is asked only of a click — a page that opens
-a tab by itself (a `window.open` on a timer, an extension's
-`chrome.tabs.create`, a link out of a popup) routes right without a question,
-there being no gesture behind it and no reason to think the pointer is where the
-user is looking.
+at all, its answer being on record. And it is asked only of a click or `Enter` — a page that opens a tab by itself
+(a `window.open` on a timer, an extension's `chrome.tabs.create`, a link out of
+a popup) routes right without a question, there being no gesture behind it and
+no reason to think the pointer is where the user is looking.
 
 ## Left-view tabs (keep-alive)
 

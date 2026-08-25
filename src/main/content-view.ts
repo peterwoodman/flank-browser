@@ -81,6 +81,12 @@ export class ContentView {
   private suppressTrailAppend = false;
   private lastFormSubmit = 0;
   private lastUserGesture = 0; // last click/Enter reported by the content preload
+  /**
+   * Enter's focused control as a fraction of this view's viewport, so the
+   * where-to-open question can sit on it rather than on a pointer that was
+   * not involved. Null after a click, which has the pointer instead.
+   */
+  private lastEnterFocus: { x: number; y: number } | null = null;
   private loadingWatchdog: NodeJS.Timeout | null = null;
   private lastFaviconSource: string | null = null; // last URL a favicon was captured for
   /** Favicon URLs the engine reported for the current page, newest event wins. */
@@ -350,6 +356,14 @@ export class ContentView {
     return Date.now() - this.lastUserGesture < GESTURE_WINDOW_MS;
   }
 
+  /**
+   * Where an Enter gesture was aimed, as a fraction of this view's viewport.
+   * Null for a click — the question then uses the pointer.
+   */
+  get enterFocus(): { x: number; y: number } | null {
+    return this.clickedRecently ? this.lastEnterFocus : null;
+  }
+
   /** The engine's own back stack (reaches SPA route changes the trail collapses). */
   get canGoBack(): boolean {
     return (
@@ -498,12 +512,14 @@ export class ContentView {
       this.applyColors(message.slice('colors:'.length));
       return;
     }
+    if (message === 'gesture' || message.startsWith('gesture:focus:')) {
+      this.lastUserGesture = Date.now();
+      this.lastEnterFocus = parseEnterFocus(message);
+      return;
+    }
     switch (message) {
       case 'formsubmit':
         this.lastFormSubmit = Date.now();
-        break;
-      case 'gesture':
-        this.lastUserGesture = Date.now();
         break;
       case 'back':
         this.goBackInTrail();
@@ -601,6 +617,17 @@ export class ContentView {
 
   /** A pinned link's tab: manifest background captured for the splash. */
   onAppBackground: (pageUrl: string, cssColor: string) => void = () => {};
+}
+
+/** `gesture:focus:x,y` from the content preload; anything else is a click. */
+function parseEnterFocus(message: string): { x: number; y: number } | null {
+  if (!message.startsWith('gesture:focus:')) return null;
+  const parts = message.slice('gesture:focus:'.length).split(',');
+  if (parts.length !== 2) return null;
+  const x = Number(parts[0]);
+  const y = Number(parts[1]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x, y };
 }
 
 function hostOf(url: string): string {
