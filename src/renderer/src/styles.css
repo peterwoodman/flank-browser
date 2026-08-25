@@ -308,6 +308,12 @@ select {
   animation: fade-in var(--dur-dialog) var(--ease-decel);
 }
 
+.overlay-menu {
+  /* Same tier as overlay-dim: Edit/Remove on a space-menu tile must sit over
+     the space menu it came from, not under it. */
+  z-index: 102;
+}
+
 .context-menu {
   position: absolute;
   min-width: 160px;

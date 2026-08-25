@@ -39,7 +39,11 @@ export function ContextMenu({
   }, [x, y]);
 
   return (
-    <div className="overlay" onMouseDown={onClose} onContextMenu={(e) => e.preventDefault()}>
+    <div
+      className="overlay overlay-menu"
+      onMouseDown={onClose}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       <div
         ref={ref}
         className="context-menu"
